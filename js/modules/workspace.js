@@ -63,7 +63,9 @@ export async function workspaceView(root, { id, round, section = 'rhymes' }) {
   const resolvedCollapsed = (savedCollapsedSetting && typeof savedCollapsedSetting === 'object' && 'value' in savedCollapsedSetting)
     ? savedCollapsedSetting.value
     : (savedCollapsedSetting !== null && savedCollapsedSetting !== undefined ? savedCollapsedSetting : (cachedCollapsed === 'true'));
-  let isPanelCollapsed = !!resolvedCollapsed;
+  const isMobileViewport = () => window.innerWidth <= 768;
+  // On phones the supporting tools are a bottom sheet that starts closed (opened with the floating Tools button).
+  let isPanelCollapsed = isMobileViewport() ? true : !!resolvedCollapsed;
 
   // Initial supporting tab: rhymes (default), schemes, voice
   const savedTabSetting = await store.getSetting('workspace_supporting_tab');
@@ -81,8 +83,9 @@ export async function workspaceView(root, { id, round, section = 'rhymes' }) {
 
   // Header Elements
   const exportTxtBtn = h('button', {
-    class: 'ghost small-btn',
+    class: 'ghost small-btn ws-export-btn',
     title: 'Export complete battle script to .txt',
+    'aria-label': 'Export Script (.txt)',
     onclick: async () => {
       try {
         const txt = await store.exportBattleTxt(id);
@@ -92,10 +95,10 @@ export async function workspaceView(root, { id, round, section = 'rhymes' }) {
         toast(`Export failed: ${e.message}`, 'error');
       }
     },
-  }, 'Export Script (.txt)');
+  }, h('span', { class: 'ws-export-icon', 'aria-hidden': 'true' }, '⭳'), h('span', { class: 'ws-export-label' }, 'Export Script (.txt)'));
 
   const togglePanelBtn = h('button', {
-    class: 'ghost small-btn',
+    class: 'ghost small-btn ws-toggle-panel-btn',
     title: 'Toggle Supporting Workspace Panel',
     onclick: () => toggleSupportingPanel(),
   }, isPanelCollapsed ? 'Show Supporting Tools ◨' : 'Hide Supporting Tools ◫');
@@ -379,7 +382,8 @@ export async function workspaceView(root, { id, round, section = 'rhymes' }) {
     title: 'Open Supporting Tools (Rhymes, Schemes, Voice)',
     style: isPanelCollapsed ? 'display: inline-flex;' : 'display: none;',
     onclick: () => toggleSupportingPanel(false),
-  }, '« Supporting Tools');
+  }, h('span', { class: 'pill-label-desktop' }, '« Supporting Tools'),
+     h('span', { class: 'pill-label-mobile' }, h('span', { class: 'pill-mobile-icon', 'aria-hidden': 'true' }, '≣'), ' Rhymes & Tools'));
 
   const workspaceMain = h('div', { class: 'workspace-main' },
     reopenPill,
@@ -505,8 +509,11 @@ export async function workspaceView(root, { id, round, section = 'rhymes' }) {
         await switchSupportingTab(activeSupportingTab);
       }
     }
-    try { localStorage.setItem('baraha_supporting_collapsed', String(isPanelCollapsed)); } catch {}
-    await store.setSetting('workspace_supporting_collapsed', isPanelCollapsed);
+    // Don't let the phone bottom-sheet state overwrite the desktop panel preference.
+    if (!isMobileViewport()) {
+      try { localStorage.setItem('baraha_supporting_collapsed', String(isPanelCollapsed)); } catch {}
+      await store.setSetting('workspace_supporting_collapsed', isPanelCollapsed);
+    }
   }
 
   // Draggable divider implementation

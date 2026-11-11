@@ -16,6 +16,32 @@ function makeThumbtackSvg(isPinned) {
   return span;
 }
 
+
+// Themed group-heading icons (same rough hand-drawn marker style as the card thumbtack)
+function makeWallTagPinSvg() {
+  const span = document.createElement('span');
+  span.className = 'wall-tag-icon';
+  span.setAttribute('aria-hidden', 'true');
+  span.innerHTML = `<svg viewBox="0 0 20 20" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M7 3l10 10-2 2-3-1-4 4-1 1-2-2 1-1 4-4-1-3 2-2z" />
+    <line x1="8" y1="12" x2="2" y2="18" stroke-width="2" />
+    <circle cx="13.5" cy="6.5" r="1.5" fill="currentColor" />
+  </svg>`;
+  return span;
+}
+
+function makeWallTagBrickSvg(size = 15) {
+  const span = document.createElement('span');
+  span.className = 'wall-tag-icon';
+  span.setAttribute('aria-hidden', 'true');
+  span.innerHTML = `<svg viewBox="0 0 20 20" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M2.5 4.5h15v11h-15z" />
+    <path d="M2.5 8.2h15M2.5 11.8h15" />
+    <path d="M9.5 4.5v3.7M6 8.2v3.6M13.2 8.2v3.6M9.5 11.8v3.7" />
+  </svg>`;
+  return span;
+}
+
 function makeLocationPinSvg() {
   const span = document.createElement('span');
   span.className = 'card-meta-icon card-marker-icon-wrap';
@@ -480,10 +506,10 @@ export async function dashboardView(root) {
   const othersGrid = h('div', { class: 'poster-wall-grid others-grid' });
 
   const pinnedSectionHeader = h('div', { class: 'wall-group-header' },
-    h('span', { class: 'wall-group-tag' }, '📌 PINNED TO THE WALL')
+    h('span', { class: 'wall-group-tag' }, makeWallTagPinSvg(), 'PINNED TO THE WALL')
   );
   const othersSectionHeader = h('div', { class: 'wall-group-header' },
-    h('span', { class: 'wall-group-tag' }, '🧱 POSTERS')
+    h('span', { class: 'wall-group-tag' }, makeWallTagBrickSvg(), 'POSTERS')
   );
   const archiveSectionHeader = h('div', { class: 'wall-group-header' },
     h('span', { class: 'wall-group-tag' }, '📦 ARCHIVED FLYERS')
@@ -502,7 +528,7 @@ export async function dashboardView(root) {
   );
 
   const emptyWallMsg = h('div', { class: 'empty-state-wrap empty' },
-    h('div', { class: 'empty-state-icon' }, '🧱'),
+    h('div', { class: 'empty-state-icon wall-empty-brick' }, makeWallTagBrickSvg(44)),
     h('div', { class: 'empty-state-title' }, "The wall's empty"),
     h('div', { class: 'empty-state-desc' }, 'Tape up your first battle flyer. Create your battle structure and write your bars.'),
     h('button', { class: 'primary', onclick: quickCreateBattle }, 'New battle')

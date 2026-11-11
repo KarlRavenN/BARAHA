@@ -46,16 +46,18 @@ export function mountTextEditor(container, {
 
   // Header controls
   const undoBtn = h('button', {
-    class: 'ghost small-btn',
+    class: 'ghost small-btn toolbar-undo-btn',
     title: 'Undo (Ctrl+Z)',
+    'aria-label': 'Undo',
     onclick: () => { document.execCommand('undo'); refreshCounts(); },
-  }, '↶ Undo');
+  }, h('span', { class: 'tb-icon' }, '↶'), h('span', { class: 'tb-text' }, ' Undo'));
 
   const redoBtn = h('button', {
-    class: 'ghost small-btn',
+    class: 'ghost small-btn toolbar-redo-btn',
     title: 'Redo (Ctrl+Y)',
+    'aria-label': 'Redo',
     onclick: () => { document.execCommand('redo'); refreshCounts(); },
-  }, '↷ Redo');
+  }, h('span', { class: 'tb-icon' }, '↷'), h('span', { class: 'tb-text' }, ' Redo'));
 
   const stateBadge = h('span', { class: 'save-state faint' }, 'Loading…');
 
@@ -96,14 +98,14 @@ export function mountTextEditor(container, {
         toast('Could not update round status', 'error');
       }
     },
-  }, `Mark Round ${roundNum} Completed`);
+  }, h('span', { class: 'lbl-full' }, `Mark Round ${roundNum} Completed`), h('span', { class: 'lbl-short' }, 'Complete'));
 
   function updateCompleteBtn() {
     markCompleteBtn.classList.toggle('completed', isRoundCompleted);
     markCompleteBtn.classList.toggle('sprayed', isRoundCompleted);
     markCompleteBtn.innerHTML = isRoundCompleted
-      ? `<span class="spray-stencil-icon">✓</span> Round ${roundNum} Completed`
-      : `Mark Round ${roundNum} Completed`;
+      ? `<span class="spray-stencil-icon">✓</span> <span class="lbl-full">Round ${roundNum} Completed</span><span class="lbl-short">Completed</span>`
+      : `<span class="lbl-full">Mark Round ${roundNum} Completed</span><span class="lbl-short">Complete</span>`;
   }
 
   // Quick Highlight Swatches Bar in Header
@@ -142,13 +144,14 @@ export function mountTextEditor(container, {
         autosave();
       }
     },
-  }, '✕ No Highlight');
+  }, h('span', { class: 'tb-icon' }, '✕'), h('span', { class: 'tb-text' }, ' No Highlight'));
 
   const highlightBar = h('div', { class: 'editor-highlight-toolbar row', style: 'gap: 4px; align-items: center;' },
-    h('span', { class: 'small faint', style: 'margin-right: 2px;' }, 'Highlight:'),
+    h('span', { class: 'small faint toolbar-hl-label', style: 'margin-right: 2px;' }, 'Highlight:'),
     ...swatchButtons,
     clearHighlightBtn
   );
+  clearHighlightBtn.setAttribute('aria-label', 'Remove highlight');
 
   const findBtn = h('button', {
     class: 'ghost small-btn toolbar-find-btn',
@@ -157,7 +160,7 @@ export function mountTextEditor(container, {
     onclick: () => {
       if (onOpenFindBar) onOpenFindBar();
     },
-  }, '🔍 Find');
+  }, h('span', { class: 'tb-icon' }, '🔍'), h('span', { class: 'tb-text' }, ' Find'));
 
   // Ordered strictly from left to right:
   // 1. Highlight Colors
@@ -177,7 +180,7 @@ export function mountTextEditor(container, {
   ] : [highlightBar];
 
   const bar = h('div', { class: 'editor-bar' },
-    h('div', { class: 'row', style: 'gap: 8px; align-items: center;' },
+    h('div', { class: 'row toolbar-status', style: 'gap: 8px; align-items: center;' },
       stateBadge),
     h('div', { class: 'spacer' }),
     ...tools);

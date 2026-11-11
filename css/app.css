@@ -589,6 +589,9 @@ label { display: block; font-size: var(--fs-sm); color: var(--text-dim); margin-
   padding-bottom: 6px;
 }
 .wall-group-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
   font-family: var(--font-subhead, 'Oswald');
   font-size: 12px;
   font-weight: 700;
@@ -3076,3 +3079,159 @@ html, body {
   color: #8E2A22;
 }
 .poster-footer-marker-icon { stroke: #8E2A22; fill: none; }
+
+/* Wall group heading icons + clickable logo */
+.wall-tag-icon { display: inline-flex; color: var(--red-spray, #A60000); }
+.wall-tag-icon svg { display: block; }
+.wall-empty-brick { color: var(--red-spray, #A60000); opacity: 0.85; display: flex; justify-content: center; }
+.brand-home-link { display: inline-block; color: inherit; cursor: pointer; text-decoration: none; }
+.brand-home-link:hover b { filter: brightness(1.15); }
+.brand-home-link:focus-visible { outline: 2px solid var(--red-spray, #A60000); outline-offset: 3px; border-radius: 4px; }
+
+/* =========================================================================
+   MOBILE WORKSPACE POLISH (phones): roomy header, floating Tools button,
+   two-row compact toolbar, writing area gets the remaining height.
+   ========================================================================= */
+.pill-label-mobile { display: none; }
+.lbl-short { display: none; }
+.ws-export-icon { display: none; }
+
+@media (max-width: 768px) {
+  #view:has(.workspace-studio) { padding: 10px 14px 12px !important; }
+
+  /* Header: breadcrumb, title + opponent, export as a small icon button */
+  .workspace-header { margin-bottom: 4px; }
+  .workspace-header .crumbs {
+    display: flex; align-items: center; gap: 6px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    font-size: 11px; opacity: 0.8; margin-bottom: 8px;
+  }
+  .workspace-header .crumbs span { overflow: hidden; text-overflow: ellipsis; }
+  .workspace-head {
+    flex-wrap: nowrap; align-items: center; gap: 12px; margin-bottom: 12px;
+  }
+  .workspace-head > div:first-child { min-width: 0; flex: 1; }
+  .workspace-title {
+    font-size: 22px; line-height: 1.15; margin: 0;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .workspace-head > div:first-child > .muted {
+    display: block; margin-top: 3px; font-size: 12.5px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .ws-toggle-panel-btn { display: none !important; }
+  .ws-export-btn {
+    width: 40px; height: 40px; padding: 0; flex-shrink: 0; border-radius: 8px;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .ws-export-label { display: none; }
+  .ws-export-icon { display: inline; font-size: 19px; line-height: 1; }
+
+  /* Round tabs: one clean scrollable strip with comfortable tap targets */
+  .workspace-round-tabs { margin-bottom: 10px; padding: 2px 0 4px; }
+  .round-tab-item { min-height: 40px; display: inline-flex; align-items: center; padding: 8px 14px; }
+  .add-round-plus-btn { min-height: 40px; min-width: 40px; }
+
+  /* Floating Tools button replaces the wide red bar */
+  .workspace-reopen-pill {
+    position: fixed !important;
+    top: auto !important;
+    left: auto !important;
+    right: 16px;
+    bottom: calc(18px + env(safe-area-inset-bottom, 0px));
+    z-index: 700;
+    min-height: 46px;
+    padding: 0 18px;
+    border-radius: 99px;
+    background: #8E2A22;
+    color: #fff;
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    font-size: 13.5px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.65);
+    align-items: center;
+    justify-content: center;
+  }
+  .pill-label-desktop { display: none; }
+  .pill-label-mobile { display: inline-flex; align-items: center; gap: 6px; }
+  .pill-mobile-icon { font-size: 17px; line-height: 1; }
+
+  /* Toolbar: row 1 = status + find / undo / redo, row 2 = highlights + complete */
+  .editor-wrap { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
+  .editor-bar {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) repeat(3, 42px);
+    align-items: center;
+    gap: 8px 6px;
+    padding: 2px 0 4px !important;
+    overflow: visible !important;
+  }
+  .editor-bar .spacer, .toolbar-size-control { display: none !important; }
+  .toolbar-status { grid-column: 1; grid-row: 1; min-width: 0; }
+  .toolbar-find-btn { grid-column: 2; grid-row: 1; }
+  .toolbar-undo-btn { grid-column: 3; grid-row: 1; }
+  .toolbar-redo-btn { grid-column: 4; grid-row: 1; }
+  .toolbar-find-btn, .toolbar-undo-btn, .toolbar-redo-btn {
+    width: 42px; height: 38px; padding: 0 !important;
+    display: inline-flex; align-items: center; justify-content: center;
+    border-radius: 8px;
+  }
+  .editor-bar .tb-text { display: none; }
+  .editor-bar .tb-icon { font-size: 17px; line-height: 1; }
+
+  .editor-highlight-toolbar {
+    grid-column: 1 / 3; grid-row: 2;
+    min-width: 0; overflow-x: auto; gap: 8px !important;
+    padding: 4px 6px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .editor-highlight-toolbar::-webkit-scrollbar { display: none; }
+  .toolbar-hl-label { display: none; }
+  .toolbar-swatch { width: 28px; height: 28px; }
+  .toolbar-clear-hl {
+    width: 30px; height: 30px; padding: 0 !important;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+  .toolbar-clear-hl .tb-text { display: none; }
+
+  .mark-complete-toolbar-btn {
+    grid-column: 3 / 5; grid-row: 2;
+    height: 38px; padding: 0 8px !important;
+    font-size: 12px !important; border-radius: 8px;
+    display: inline-flex; align-items: center; justify-content: center; gap: 4px;
+  }
+  .mark-complete-toolbar-btn .lbl-full { display: none; }
+  .mark-complete-toolbar-btn .lbl-short { display: inline; }
+  /* Draft round has no Mark Complete button: highlights use the full row */
+  .editor-bar:not(:has(.mark-complete-toolbar-btn)) .editor-highlight-toolbar { grid-column: 1 / -1; }
+
+  /* Writing area fills all remaining height */
+  .editor-area {
+    flex: 1; min-height: 0 !important; overflow-y: auto;
+    padding: 14px !important;
+  }
+  textarea.editor, .editor, .editor.rich-editor { min-height: 100% !important; }
+  .editor-foot { padding: 2px 2px 0; padding-right: 130px; }
+}
+
+/* Drawer logo matches the top-bar logo */
+.nav-drawer-header .brand-tag b {
+  font-family: var(--font-display);
+  font-size: 30px;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  color: var(--white);
+}
+.nav-drawer-header .brand-tag b span { color: var(--red-spray); }
+
+@media (max-width: 768px) {
+  /* The top bar already shows the logo, so don't repeat it in the Wall heading */
+  .header-brand-tag { display: none !important; }
+
+  /* Card top row: let the badges and edited time wrap cleanly instead of squeezing */
+  .card-top-row { flex-wrap: wrap; row-gap: 6px; }
+  .card-status-col { flex-wrap: wrap; row-gap: 6px; }
+  .card-edited-time { white-space: nowrap; font-size: 11px; }
+}
