@@ -1,0 +1,14 @@
+{
+  "name": "baraha",
+  "version": "0.2.0",
+  "description": "BARAHA - battle rap writing workspace (offline-first, no runtime dependencies)",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node serve.mjs",
+    "start:py": "python serve.py",
+    "test": "node --test tests/store.test.js",
+    "test:e2e": "python tests/e2e.py"
+  },
+  "engines": { "node": ">=18" }
+}

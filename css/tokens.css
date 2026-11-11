@@ -1,0 +1,76 @@
+/* BARAHA V3: Underground Battle Rap Edition Tokens.
+   Inspired by FlipTop, KOTD, URL, Don't Flop, concrete battle arenas,
+   spray paint, marker tags, flyer walls, and analog studio gear. */
+:root {
+  /* Brand underground palette */
+  --red: #A60000;
+  --red-crimson: #A60000;
+  --red-deep: #8E2A22;
+  --red-punch: #C41212;
+  --red-spray: #D91B1B;
+  --red-hover: #C41212;
+  --red-text: #F26161;
+  --red-glow: rgba(142, 42, 34, 0.28);
+
+  --gray-light: #B0ACAC;
+  --gray-tag: #A29F9F;
+  --gray-mid: #7A7675;
+  --gray-dark: #777675;
+  --charcoal: #262323;
+  --charcoal-base: #262323;
+  --charcoal-deep: #161414;
+  --white: #F5F3F2;
+
+  --stamp-shadow: 2px 2px 0px rgba(0, 0, 0, 0.75);
+  --stamp-border: 1px solid #8E2A22;
+  --focus-ring: 2px solid #8E2A22;
+  --trans-stamp: 140ms ease;
+
+  /* Surfaces & Layers */
+  --bg: #141212;             /* Underground dark arena background */
+  --surface: #1E1B1B;        /* Battle card & panel surface */
+  --surface-2: #282424;      /* Inputs, toolbar, hover states */
+  --surface-3: #332E2E;      /* Raised elements, card highlights */
+  --line: #383232;           /* Distressed border line */
+  --line-strong: #4F4747;    /* Active boundaries */
+
+  /* Text hierarchy */
+  --text: #EDEAEA;           /* Clean legible reading text */
+  --text-dim: #A8A2A1;
+  --text-faint: #736C6B;
+  --danger: #F26161;
+  --ok: #72C782;
+
+  /* Authentic Battle Flyer Aesthetics */
+  --tape-color: rgba(235, 222, 190, 0.14);
+  --tape-border: rgba(255, 255, 255, 0.08);
+  --spray-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+  --poster-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.8), 0 2px 6px rgba(0, 0, 0, 0.5);
+
+  /* Typography scale */
+  --font-display: 'Bebas Neue', 'Anton', Impact, sans-serif;
+  --font-subhead: 'Oswald', 'Inter', sans-serif;
+  --font-ui: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-write: "Space Mono", "Cascadia Mono", Consolas, monospace;
+  --fs-xs: 11px;
+  --fs-sm: 12.5px;
+  --fs-base: 14.5px;
+  --fs-md: 16px;
+  --fs-lg: 20px;
+  --fs-xl: 28px;
+  --fs-poster: 36px;
+
+  /* Spacing */
+  --s1: 4px;
+  --s2: 8px;
+  --s3: 12px;
+  --s4: 16px;
+  --s5: 24px;
+  --s6: 32px;
+  --s7: 48px;
+
+  --radius: 6px;
+  --radius-sm: 4px;
+  --radius-lg: 10px;
+  --nav-w: 224px;
+}

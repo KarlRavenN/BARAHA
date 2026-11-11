@@ -1,0 +1,322 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>BARAHA Unit Test Runner</title>
+</head>
+<body>
+  <h1>BARAHA Unit Test Runner</h1>
+  <div id="output">Running...</div>
+  <script type="module">
+    import { createMemoryBackend } from './memory-backend.js';
+    import * as store from '../js/core/store.js';
+    import { textStats, getBattleCountdown } from '../js/core/util.js';
+
+    const output = document.getElementById('output');
+    const results = [];
+    const fresh = () => store.setBackend(createMemoryBackend());
+
+    async function runTest(name, fn) {
+      try {
+        await fn();
+        results.push({ name, pass: true });
+      } catch (e) {
+        results.push({ name, pass: false, error: e.message || String(e) });
+      }
+    }
+
+    async function runAll() {
+      await runTest('creating a battle creates 4 rounds: Round 1, Round 2, Round 3, Draft', async () => {
+        fresh();
+        const { battle, rounds } = await store.createBattle({ title: 'Test', opponentName: 'X' });
+        if (rounds.length !== 4) throw new Error(`Rounds count ${rounds.length} !== 4`);
+        const names = rounds.map((r) => r.name);
+        if (names[0] !== 'Round 1' || names[1] !== 'Round 2' || names[2] !== 'Round 3' || names[3] !== 'Draft') {
+          throw new Error('Round names wrong: ' + names.join(', '));
+        }
+        const kinds = rounds.map((r) => r.kind);
+        if (kinds[3] !== 'draft') throw new Error('4th round should have kind=draft');
+      });
+
+      await runTest('edit, archive, restore', async () => {
+        fresh();
+        const { battle } = await store.createBattle({ title: 'A' });
+        await store.updateBattle(battle.id, { title: 'B', status: 'Writing' });
+        if ((await store.getBattle(battle.id)).title !== 'B') throw new Error('Update failed');
+        await store.setArchived(battle.id, true);
+        if (!(await store.getBattle(battle.id)).archived) throw new Error('Archive failed');
+        await store.setArchived(battle.id, false);
+        if ((await store.getBattle(battle.id)).archived) throw new Error('Restore failed');
+      });
+
+      await runTest('rounds keep independent final material', async () => {
+        fresh();
+        const { battle, rounds } = await store.createBattle({ title: 'A' });
+        await store.saveFinalMaterial(rounds[0].id, battle.id, 'round one bars');
+        await store.saveFinalMaterial(rounds[1].id, battle.id, 'round two bars');
+        if ((await store.getFinalMaterial(rounds[0].id)).text !== 'round one bars') throw new Error('Round 1 text mismatch');
+        if ((await store.getFinalMaterial(rounds[1].id)).text !== 'round two bars') throw new Error('Round 2 text mismatch');
+      });
+
+      await runTest('final material is stored byte-for-byte (Taglish, odd spacing)', async () => {
+        fresh();
+        const { battle, rounds } = await store.createBattle({ title: 'A' });
+        const raw = '  Ang yabang mo pre,, wla ka namang bars!!  \n\n\tsakin ka mag-aral...   \nkunwri  ';
+        await store.saveFinalMaterial(rounds[0].id, battle.id, raw);
+        if ((await store.getFinalMaterial(rounds[0].id)).text !== raw) throw new Error('Raw text mismatch');
+      });
+
+      await runTest('draft creation, filtering, and copy/move to final material', async () => {
+        fresh();
+        const { battle, rounds } = await store.createBattle({ title: 'Battle 1' });
+        const d1 = await store.createDraft({ title: 'P1', content: 'Doble kara', category: 'Punchline', battleId: battle.id, roundId: rounds[0].id });
+        const list = await store.listDrafts({ roundId: rounds[0].id });
+        if (list.length !== 1) throw new Error('Draft list failed');
+        await store.copyDraftToFinalMaterial(d1.id, rounds[0].id, battle.id, false);
+        const mat = await store.getFinalMaterial(rounds[0].id);
+        if (!mat.text.includes('Doble kara')) throw new Error('Copy to final failed');
+      });
+
+      await runTest('scheme builder and draft linking', async () => {
+        fresh();
+        const { battle, rounds } = await store.createBattle({ title: 'Scheme Battle' });
+        const draft = await store.createDraft({ title: 'Bar', content: 'Bala', category: 'Punchline', battleId: battle.id, roundId: rounds[0].id });
+        const scheme = await store.createScheme({ title: 'Card Scheme', battleId: battle.id, roundId: rounds[0].id });
+        await store.linkDraftToScheme(scheme.id, draft.id);
+        const linked = await store.getSchemeDrafts(scheme.id);
+        if (linked.length !== 1) throw new Error('Linking draft failed');
+      });
+
+      await runTest('rhyme engine search and saved rhymes', async () => {
+        fresh();
+        const result = await store.searchRhymeEngineWithBattleCorpus('makata');
+        if (result.exact.length === 0 && result.slant.length === 0) throw new Error('Rhyme search empty');
+        const r = await store.createSavedRhyme({ text: 'tira / bira', kind: 'multi' });
+        if ((await store.listSavedRhymes()).length !== 1) throw new Error('Saved rhyme failed');
+      });
+
+      await runTest('line checker honesty and similarity scan', async () => {
+        fresh();
+        const emptyScan = await store.scanText('Bawat bara ko alas');
+        if (emptyScan.matches.length !== 0 || emptyScan.totalReferenceLines !== 0) throw new Error('Honest scan failed');
+        await store.saveReferenceLine({ text: 'Bawat bara ko alas', emcee: 'Loonie' });
+        const matchScan = await store.scanText('Bawat bara ko alas');
+        if (matchScan.matches.length !== 1 || matchScan.matches[0].category !== 'Exact Match') throw new Error('Match detection failed');
+      });
+
+      await runTest('global search across modules', async () => {
+        fresh();
+        const { battle, rounds } = await store.createBattle({ title: 'FlipTop Royale', opponentName: 'Invictus' });
+        await store.saveFinalMaterial(rounds[0].id, battle.id, 'Nagbabalik ang maestro');
+        const res = await store.globalSearch('maestro');
+        if (res.total < 1) throw new Error('Global search failed');
+      });
+
+      await runTest('plain text battle export', async () => {
+        fresh();
+        const { battle, rounds } = await store.createBattle({ title: 'Finals 2026', opponentName: 'Mzhayt' });
+        await store.saveFinalMaterial(rounds[0].id, battle.id, 'Round 1 text');
+        const txt = await store.exportBattleTxt(battle.id);
+        if (!txt.includes('BARAHA BATTLE MATERIAL') || !txt.includes('Finals 2026')) throw new Error('Export text failed');
+      });
+
+      await runTest('custom pronunciation dictionary and duplicate rhyme prevention', async () => {
+        fresh();
+        const p = await store.createPronunciation({ word: 'lodi', phonetic: 'L-OW-D-IY', notes: 'Slang' });
+        const list = await store.listPronunciations();
+        if (list.length !== 1 || list[0].word !== 'lodi') throw new Error('Pronunciation creation failed');
+        // Duplicate save rhyme check
+        const r1 = await store.createSavedRhyme({ text: 'makata', collection: 'Test' });
+        const r2 = await store.createSavedRhyme({ text: 'makata', collection: 'Test' });
+        if ((await store.listSavedRhymes()).length !== 1) throw new Error('Duplicate rhyme prevention failed');
+        await store.deletePronunciation(p.id);
+        if ((await store.listPronunciations()).length !== 0) throw new Error('Pronunciation deletion failed');
+      });
+
+      await runTest('pinned bars creation, listing, and deletion', async () => {
+        fresh();
+        const { battle, rounds } = await store.createBattle({ title: 'Battle X' });
+        const pb = await store.createPinnedBar({ text: 'Bawat bara may bala', battleId: battle.id, roundId: rounds[0].id, source: 'Final Material' });
+        if (!pb.id || pb.text !== 'Bawat bara may bala') throw new Error('Pinned bar create failed');
+        const list = await store.listPinnedBars();
+        if (list.length !== 1 || list[0].battleTitle !== 'Battle X') throw new Error('Pinned bar list failed');
+        await store.deletePinnedBar(pb.id);
+        if ((await store.listPinnedBars()).length !== 0) throw new Error('Pinned bar delete failed');
+      });
+
+      await runTest('pinned battle appears before unpinned regardless of edit time', async () => {
+        fresh();
+        const { battle: b1 } = await store.createBattle({ title: 'Old Battle Pinned' });
+        await store.toggleBattlePin(b1.id);
+        await new Promise((r) => setTimeout(r, 10));
+        const { battle: b2 } = await store.createBattle({ title: 'New Battle Unpinned' });
+        const data = await store.getDashboardData();
+        if (data.activeBattles[0].id !== b1.id) throw new Error('Pinned battle did not appear first');
+        if (data.pinnedBattles.length !== 1 || data.pinnedBattles[0].id !== b1.id) throw new Error('pinnedBattles mismatch');
+      });
+
+      await runTest('edited writing card jumps to top of its group', async () => {
+        fresh();
+        const { battle: b1 } = await store.createBattle({ title: 'Battle 1' });
+        const { battle: b2 } = await store.createBattle({ title: 'Battle 2' });
+        // Place manual order: b1 then b2
+        const now = new Date().toISOString();
+        await store.updateBattlesOrder([
+          { id: b1.id, wallOrder: 0, wallOrderedAt: now },
+          { id: b2.id, wallOrder: 1, wallOrderedAt: now },
+        ]);
+        let data = await store.getDashboardData();
+        if (data.unpinnedBattles[0].id !== b1.id) throw new Error('Manual order not applied');
+        // Edit b2 after order
+        await new Promise((r) => setTimeout(r, 20));
+        await store.updateBattle(b2.id, { title: 'Battle 2 Edited' });
+        data = await store.getDashboardData();
+        if (data.unpinnedBattles[0].id !== b2.id) throw new Error('Edited battle did not jump to top');
+      });
+
+      await runTest('manually placed card stays until edited again', async () => {
+        fresh();
+        const { battle: b1 } = await store.createBattle({ title: 'Card 1' });
+        const { battle: b2 } = await store.createBattle({ title: 'Card 2' });
+        const { battle: b3 } = await store.createBattle({ title: 'Card 3' });
+        const now = new Date().toISOString();
+        // Set manual order: b3 (0), b2 (1), b1 (2)
+        await store.updateBattlesOrder([
+          { id: b3.id, wallOrder: 0, wallOrderedAt: now },
+          { id: b2.id, wallOrder: 1, wallOrderedAt: now },
+          { id: b1.id, wallOrder: 2, wallOrderedAt: now },
+        ]);
+        const data = await store.getDashboardData();
+        const ids = data.unpinnedBattles.map(b => b.id);
+        if (ids[0] !== b3.id || ids[1] !== b2.id || ids[2] !== b1.id) {
+          throw new Error('Manual card order not preserved: ' + ids.join(', '));
+        }
+      });
+
+      await runTest('completed card edit does not jump to top', async () => {
+        fresh();
+        const { battle: b1 } = await store.createBattle({ title: 'Active Writing Battle' });
+        const { battle: b2 } = await store.createBattle({ title: 'Completed Battle' });
+        await store.updateBattle(b2.id, { status: 'Completed' });
+        const now = new Date().toISOString();
+        // Place order: b1 (0), b2 (1)
+        await store.updateBattlesOrder([
+          { id: b1.id, wallOrder: 0, wallOrderedAt: now },
+          { id: b2.id, wallOrder: 1, wallOrderedAt: now },
+        ]);
+        // Edit completed battle b2
+        await new Promise((r) => setTimeout(r, 20));
+        await store.updateBattle(b2.id, { opponentName: 'New Opponent' });
+        const data = await store.getDashboardData();
+        if (data.unpinnedBattles[0].id !== b1.id) {
+          throw new Error('Completed battle jumped to top after edit');
+        }
+      });
+
+      // ======= NEW ROUND MODEL TESTS =======
+
+      await runTest('createRound adds a new round with correct defaults', async () => {
+        fresh();
+        const { battle, rounds } = await store.createBattle({ title: 'Round Test' });
+        const newRound = await store.createRound(battle.id, { name: 'Extra Round' });
+        if (newRound.name !== 'Extra Round') throw new Error('Round name wrong');
+        if (newRound.kind !== 'round') throw new Error('Round kind should be round');
+        const all = await store.getRounds(battle.id);
+        if (all.length !== 5) throw new Error(`Expected 5 rounds, got ${all.length}`);
+      });
+
+      await runTest('renameRound updates name', async () => {
+        fresh();
+        const { rounds } = await store.createBattle({ title: 'Rename Test' });
+        await store.renameRound(rounds[0].id, 'Intro Bar');
+        const updated = await store.getRound(rounds[0].id);
+        if (updated.name !== 'Intro Bar') throw new Error('Name not updated');
+      });
+
+      await runTest('deleteRound removes round and preserves schemes+voice notes unassigned', async () => {
+        fresh();
+        const { battle, rounds } = await store.createBattle({ title: 'Delete Round Test' });
+        const r1 = rounds[0];
+        const scheme = await store.createScheme({ title: 'Card', battleId: battle.id, roundId: r1.id });
+        const vn = await store.createVoiceNote({ title: 'V', durationMs: 1000, battleId: battle.id, roundId: r1.id });
+        await store.deleteRound(r1.id);
+        if (await store.getRound(r1.id) !== undefined) throw new Error('Round not deleted');
+        const schemes = await store.listSchemes({ battleId: battle.id });
+        const s = schemes.find((x) => x.id === scheme.id);
+        if (!s) throw new Error('Scheme deleted along with round');
+        if (s.roundId !== null) throw new Error('Scheme roundId should be null');
+        const vns = await store.getVoiceNotes({ battleId: battle.id });
+        const v = vns.find((x) => x.id === vn.id);
+        if (!v) throw new Error('Voice note deleted along with round');
+        if (v.roundId !== null) throw new Error('Voice note roundId should be null');
+        const remaining = await store.getRounds(battle.id);
+        if (remaining.length !== 3) throw new Error(`Expected 3 remaining rounds, got ${remaining.length}`);
+      });
+
+      await runTest('deleteRound blocks deletion of last remaining round', async () => {
+        fresh();
+        const { battle, rounds } = await store.createBattle({ title: 'Last Round' });
+        for (const r of rounds.slice(1)) await store.deleteRound(r.id);
+        let threw = false;
+        try { await store.deleteRound(rounds[0].id); } catch { threw = true; }
+        if (!threw) throw new Error('Should have thrown when deleting last round');
+      });
+
+      await runTest('reorderRounds persists new order', async () => {
+        fresh();
+        const { battle, rounds } = await store.createBattle({ title: 'Reorder Test' });
+        const reversedIds = [...rounds].reverse().map((r) => r.id);
+        await store.reorderRounds(battle.id, reversedIds);
+        const reordered = await store.getRounds(battle.id);
+        if (reordered.map((r) => r.id).join(',') !== reversedIds.join(',')) {
+          throw new Error('Rounds order not persisted');
+        }
+      });
+
+      await runTest('draft round has kind=draft and non-draft rounds have kind=round', async () => {
+        fresh();
+        const { battle, rounds } = await store.createBattle({ title: 'Draft Kind Test' });
+        const draftRound = rounds.find((r) => r.kind === 'draft');
+        if (!draftRound) throw new Error('No Draft round found');
+        if (draftRound.name !== 'Draft') throw new Error('Draft round name wrong');
+        const nonDraft = rounds.filter((r) => r.kind === 'round');
+        if (nonDraft.length !== 3) throw new Error(`Expected 3 non-draft rounds, got ${nonDraft.length}`);
+      });
+
+      await runTest('getBattleCountdown calculates accurate labels and urgency across dates', async () => {
+        const baseNow = new Date(2026, 4, 15, 14, 30, 0); // May 15, 2026
+        const todayRes = getBattleCountdown('2026-05-15', baseNow);
+        if (todayRes.label !== 'TODAY' || todayRes.urgency !== 'today') throw new Error('Today mismatch');
+
+        const tomorrowRes = getBattleCountdown('2026-05-16', baseNow);
+        if (tomorrowRes.label !== 'TOMORROW' || tomorrowRes.urgency !== 'urgent') throw new Error('Tomorrow mismatch');
+
+        const fiveDaysRes = getBattleCountdown('2026-05-20', baseNow);
+        if (fiveDaysRes.label !== '5 DAYS LEFT' || fiveDaysRes.urgency !== 'urgent') throw new Error('5 days mismatch');
+
+        const fourteenDaysRes = getBattleCountdown('2026-05-29', baseNow);
+        if (fourteenDaysRes.label !== '14 DAYS LEFT' || fourteenDaysRes.urgency !== 'near') throw new Error('14 days mismatch');
+
+        const fortyFiveDaysRes = getBattleCountdown('2026-06-29', baseNow);
+        if (fortyFiveDaysRes.label !== '45 DAYS LEFT' || fortyFiveDaysRes.urgency !== 'distant') throw new Error('45 days mismatch');
+
+        const pastRes = getBattleCountdown('2026-05-10', baseNow);
+        if (pastRes.label !== 'DATE PASSED' || pastRes.urgency !== 'passed') throw new Error('Past mismatch');
+
+        const monthBoundaryRes = getBattleCountdown('2026-06-02', new Date(2026, 4, 31, 23, 59, 0));
+        if (monthBoundaryRes.label !== '2 DAYS LEFT') throw new Error('Month boundary mismatch');
+
+        const yearBoundaryRes = getBattleCountdown('2027-01-01', new Date(2026, 11, 31, 10, 0, 0));
+        if (yearBoundaryRes.label !== 'TOMORROW') throw new Error('Year boundary mismatch');
+
+        if (getBattleCountdown('') !== null || getBattleCountdown(null) !== null) throw new Error('Null/empty check failed');
+      });
+
+      window.__TEST_RESULTS = results;
+      const failed = results.filter(r => !r.pass);
+      output.innerHTML = `<pre>${results.map(r => (r.pass ? 'PASS ' : 'FAIL ') + r.name + (r.error ? ' [' + r.error + ']' : '')).join('\n')}\n\n${results.length - failed.length}/${results.length} passed</pre>`;
+    }
+    runAll();
+  </script>
+</body>
+</html>
