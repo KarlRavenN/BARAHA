@@ -68,6 +68,16 @@ export async function settingsView(root) {
     },
   });
 
+  const englishToggle = h('input', {
+    type: 'checkbox',
+    'aria-label': 'English rhyme suggestions',
+    onchange: async (e) => {
+      await store.setEnglishRhymesEnabled(e.target.checked);
+      toast(e.target.checked ? 'English rhyme suggestions on' : 'English rhyme suggestions off');
+    },
+  });
+  englishToggle.checked = await store.getEnglishRhymesEnabled();
+
   root.replaceChildren(h('div', { class: 'page stack' },
     h('div', { class: 'page-head' },
       h('div', {},
@@ -115,19 +125,33 @@ export async function settingsView(root) {
       )
     ),
 
-    // 3. Storage Section
+    // 3. Rhyme Engine Section
     h('section', { class: 'settings-section' },
-      h('div', { class: 'section-title' }, '3. Storage & Offline Persistence'),
+      h('div', { class: 'section-title' }, '3. Rhyme Engine'),
+      h('div', { class: 'card', style: 'padding: 16px 20px;' },
+        h('label', { class: 'row', style: 'gap: 10px; align-items: flex-start; cursor: pointer;' },
+          englishToggle,
+          h('div', {},
+            h('b', {}, 'English rhyme suggestions (online)'),
+            h('p', { class: 'small muted', style: 'margin: 4px 0 0;' }, 'Adds a bigger English pool using the free Datamuse API (the data behind RhymeZone). Off by default. When on, only the single English word you search is sent, never your bars. Results are cached on this device. Filipino and Taglish always stay 100% offline.')
+          )
+        )
+      )
+    ),
+
+    // 4. Storage Section
+    h('section', { class: 'settings-section' },
+      h('div', { class: 'section-title' }, '4. Storage & Offline Persistence'),
       h('div', { class: 'card', style: 'padding: 16px 20px;' },
         h('b', {}, 'Local Browser Database (IndexedDB)'),
         h('p', { class: 'muted small', style: 'margin: 6px 0 0;' }, storage),
-        h('p', { class: 'small faint', style: 'margin: 4px 0 0;' }, 'All data, rhymes, drafts, and recordings remain 100% on your machine. Zero external API leaks.')
+        h('p', { class: 'small faint', style: 'margin: 4px 0 0;' }, 'All data, rhymes, drafts, and recordings stay on your machine. The only optional exception is English rhyme suggestions (section 3), which is off by default.')
       )
     ),
 
     // 4. Backup and Restore Section
     h('section', { class: 'settings-section' },
-      h('div', { class: 'section-title' }, '4. Backup and Restore'),
+      h('div', { class: 'section-title' }, '5. Backup and Restore'),
       h('div', { class: 'card', style: 'padding: 16px 20px;' },
         h('p', { class: 'small muted', style: 'margin-bottom: 14px;' }, 'Export your entire workspace including all 3-round battle material, drafts, schemes, saved rhymes, and voice takes:'),
         h('div', { class: 'row', style: 'gap: 10px;' },
@@ -166,7 +190,7 @@ export async function settingsView(root) {
 
     // 5. About Section
     h('section', { class: 'settings-section' },
-      h('div', { class: 'section-title' }, '5. About BARAHA'),
+      h('div', { class: 'section-title' }, '6. About BARAHA'),
       h('div', { class: 'card', style: 'padding: 16px 20px;' },
         h('div', { class: 'row', style: 'gap: 8px; align-items: baseline;' },
           h('h3', { style: 'margin: 0; font-family: var(--font-display); font-size: 20px;' }, 'BARAHA V3'),

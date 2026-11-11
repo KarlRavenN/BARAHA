@@ -3,7 +3,8 @@
 
 import { STORES } from './db.js';
 import { uid, nowIso } from './util.js';
-import { searchRhymes } from './rhymes-engine.js';
+import { searchRhymes, extractCorpus, isEnglishWord, normalizeWord } from './rhymes-engine.js';
+import { fetchEnglishRhymes } from './rhyme-provider.js';
 import { createZip, readZip } from './zip.js';
 
 let backend = null;
@@ -873,22 +874,45 @@ export async function getCustomPronunciationMap() {
   }
 }
 
-/** Extracts user words from current battle rounds to expand local rhyme suggestions dynamically */
-export async function searchRhymeEngineWithBattleCorpus(query, battleId = null, mode = 'lastWord') {
+/**
+ * Local rhyme search. The word pool is the built-in lexicon PLUS everything the user has
+ * written (all battles, drafts and saved rhymes), including the endings of every line so
+ * multi-word rhymes can be found in the user's own bars. Fully offline.
+ */
+export async function searchRhymeEngineWithBattleCorpus(query, battleId = null, mode = 'auto') {
   let extraWords = [];
   try {
-    if (battleId) {
-      const mats = await be().getAllByIndex('finalMaterials', 'battleId', battleId);
-      const drafts = await be().getAllByIndex('drafts', 'battleId', battleId);
-      const allText = mats.map((m) => m.text).join(' ') + ' ' + drafts.map((d) => `${d.title} ${d.content}`).join(' ');
-      const cleanText = allText.replace(/<[^>]+>/g, ' ');
-      extraWords = cleanText.match(/[a-zA-ZñÑ]{3,}/g) || [];
-    }
+    const [mats, drafts, saved] = await Promise.all([
+      be().getAll('finalMaterials'),
+      be().getAll('drafts'),
+      be().getAll('rhymes'),
+    ]);
+    extraWords = extractCorpus([
+      ...mats.map((m) => m.text),
+      ...drafts.map((d) => `${d.title || ''}\n${d.content || ''}`),
+      ...saved.map((r) => String(r.text || '').replace(/\s*\/\s*/g, '\n')),
+    ]);
   } catch {
     /* fallback gracefully to default dictionary */
   }
   const customMap = await getCustomPronunciationMap();
   return searchRhymes(query, extraWords, customMap, mode);
+}
+
+// ---------- Optional English rhymes (online, opt-in) ----------
+
+export async function getEnglishRhymesEnabled() {
+  return !!(await getSetting('englishRhymes', false));
+}
+
+export const setEnglishRhymesEnabled = (on) => setSetting('englishRhymes', !!on);
+
+/** English suggestions for the last word of the query. Empty unless the user opted in. */
+export async function searchEnglishRhymes(query) {
+  if (!(await getEnglishRhymesEnabled())) return [];
+  const last = normalizeWord(String(query || '').trim().split(/\s+/).pop());
+  if (!last || !isEnglishWord(last)) return [];
+  return fetchEnglishRhymes(last);
 }
 
 // ---------- Pinned Bars ----------

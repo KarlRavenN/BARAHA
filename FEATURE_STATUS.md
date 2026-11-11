@@ -155,3 +155,15 @@ Status legend: **[T]** Completed and tested · **[I]** Implemented but not fully
 | JSON Backup & Restore | [T] | Complete database export/import with schema validation. |
 | Full ZIP Backup with Audio | [T] | Packages database JSON and all raw audio blobs (including scheme flow takes). |
 | Script Plain Text (.txt) Export | [T] | Generates formatted 3-round battle script text file. |
+
+
+## Rhyme Engine v2 (rhyme-upgrade)
+| Feature | Status | Notes |
+|---|---|---|
+| Real ending-sound matching | [T] | Compares the last 1-3 syllables (vowel family + actual ending consonants) instead of vowel + consonant class. Tagalog e~i / o~u harmony kept. |
+| Scoring and ranking | [T] | Every result is scored (multi-syllable > exact > slant > assonance); best matches first, grouped Multi / Exact / Slant. |
+| English sound model | [T] | English words map to the same sound tokens (dictionary + spelling-ending rules), so `fire` matches `liar` / `desire`, not Tagalog spellings. |
+| Phrase search | [T] | Several words = phrase-ending search (`ka laban`). |
+| Whole-library word pool | [T] | Words and bar endings (last 2-3 words of each line) from ALL battles, drafts and saved rhymes feed the local search. |
+| Optional English suggestions (Datamuse) | [T] | Off by default (Settings > Rhyme Engine). Sends only the single English word searched, debounced, cached in localStorage. |
+| Ending tag fix | [T] | `kalaban` now shows `-aban` (was `-ala`). |

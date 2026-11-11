@@ -513,3 +513,71 @@ test('getBattleCountdown calculates accurate labels and urgency across dates', (
   assert.equal(getBattleCountdown(null), null);
   assert.equal(getBattleCountdown('invalid-date-string'), null);
 });
+
+// ---------- Rhyme engine v2 ----------
+import { searchRhymes, extractCorpus, getRhymeEndingTag, isEnglishWord } from '../js/core/rhymes-engine.js';
+
+test('rhyme engine: Tagalog multi-syllable matches rank above loose vowel matches', () => {
+  const r = searchRhymes('kalaban');
+  assert.ok(r.multi.includes('laban'), 'laban should be a multi-syllable rhyme');
+  assert.ok(!r.multi.includes('bara') && !r.exact.includes('bara'), 'vowel-only matches must not be exact/multi');
+  assert.ok(r.exact.includes('kasalanan'));
+  const p = searchRhymes('puso');
+  assert.ok(p.multi.includes('seryoso'), 'puso ~ seryoso (-uso / -oso via vowel harmony)');
+});
+
+test('rhyme engine: unknown English words use English sounds, not Tagalog spelling', () => {
+  const r = searchRhymes('fire');
+  assert.ok(r.multi.includes('liar') && r.multi.includes('desire'));
+  assert.ok(!r.exact.includes('diskarte'));
+  assert.equal(r.englishHint, true);
+  assert.equal(searchRhymes('kalaban').englishHint, false);
+  assert.ok(isEnglishWord('fire') && !isEnglishWord('kalaban'));
+  assert.ok(searchRhymes('flow').exact.includes('glow'));
+});
+
+test('rhyme engine: phrase search, user corpus and ending tag', () => {
+  const corpus = extractCorpus(['Sino ang nasa laban,<br>walang makaharaban']);
+  assert.ok(corpus.includes('nasa laban') && corpus.includes('makaharaban'));
+  const r = searchRhymes('ka laban', ['walang makaharaban']);
+  assert.equal(r.query, 'ka laban');
+  assert.ok(r.multi.includes('walang makaharaban'), 'bar endings from the user text are searchable');
+  assert.equal(getRhymeEndingTag('kalaban'), '-aban');
+  assert.equal(getRhymeEndingTag('puso'), '-uso');
+});
+
+test('rhyme engine: user battle text, saved rhymes and the whole library feed the local search', async () => {
+  fresh();
+  const { battle, rounds } = await store.createBattle({ title: 'Corpus Battle' });
+  await store.saveFinalMaterial(rounds[0].id, battle.id, 'Wala kang binatbat sa mga makaharaban');
+  await store.createSavedRhyme({ text: 'kalamnan / kabuhayan' });
+  const r = await store.searchRhymeEngineWithBattleCorpus('kalaban');
+  assert.ok(r.notice.includes('Local'));
+  assert.ok(r.multi.includes('makaharaban'), 'words from the user\'s own rounds show up');
+  assert.ok([...r.exact, ...r.slant, ...r.multi].includes('kalamnan'), 'saved rhymes feed the pool');
+});
+
+test('English suggestions are opt-in and only send English words', async () => {
+  fresh();
+  const calls = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    calls.push(String(url));
+    return { ok: true, json: async () => [{ word: 'liar' }, { word: 'desire' }, { word: 'fire' }] };
+  };
+  try {
+    assert.deepEqual(await store.searchEnglishRhymes('fire'), []);
+    assert.equal(calls.length, 0, 'off by default: no network call');
+
+    await store.setEnglishRhymesEnabled(true);
+    assert.deepEqual(await store.searchEnglishRhymes('kalaban'), []);
+    assert.equal(calls.length, 0, 'Tagalog words are never sent');
+
+    const out = await store.searchEnglishRhymes('fire');
+    assert.deepEqual(out, ['liar', 'desire']);
+    assert.ok(calls.every((u) => u.startsWith('https://api.datamuse.com/words?')));
+    assert.ok(calls.every((u) => !u.includes('kalaban')));
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
