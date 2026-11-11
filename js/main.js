@@ -51,7 +51,9 @@ function drawNav(path) {
       backdrop.id = 'mobileNavBackdrop';
       backdrop.className = 'mobile-nav-backdrop';
       backdrop.onclick = () => toggleDrawer(false);
-      document.body.appendChild(backdrop);
+      // Must live inside #app: #app creates its own stacking context (z-index: 1),
+      // so a body-level backdrop would always paint above the drawer and block taps.
+      (document.getElementById('app') || document.body).appendChild(backdrop);
     }
     backdrop.classList.toggle('active', isDrawerOpen);
   };
@@ -75,13 +77,13 @@ function drawNav(path) {
 
   nav.replaceChildren(
     h('div', { class: 'brand mobile-brand-bar' },
-      h('div', { class: 'brand-tag' },
+      h('a', { class: 'brand-tag brand-home-link', href: '#/', title: 'Go to The Wall', 'aria-label': 'BARAHA, go to The Wall', onclick: () => toggleDrawer(false) },
         h('b', {}, 'BAR', h('span', { class: 'brand-accent' }, 'A'), 'HA')
       ),
       burgerBtn
     ),
     h('div', { class: 'nav-drawer-header' },
-      h('div', { class: 'brand-tag' },
+      h('a', { class: 'brand-tag brand-home-link', href: '#/', title: 'Go to The Wall', 'aria-label': 'BARAHA, go to The Wall', onclick: () => toggleDrawer(false) },
         h('b', {}, 'BAR', h('span', { class: 'brand-accent' }, 'A'), 'HA')
       ),
       closeBtn
