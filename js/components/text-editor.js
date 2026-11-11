@@ -1,7 +1,9 @@
 import { debounce } from '../core/util.js';
 import { getSetting, setSetting } from '../core/store.js';
 import { h, toast, confirmDialog } from '../core/ui.js';
-import { openContextMenu, closeContextMenu, HIGHLIGHT_PALETTE } from './context-menu.js';
+import { openContextMenu, closeContextMenu } from './context-menu.js';
+import { createHighlightPicker } from './highlight-picker.js';
+import { iconEl } from './icons.js';
 import { draftFormDialog } from '../modules/drafts.js';
 import { schemeFormDialog } from '../modules/schemes.js';
 import { lineCheckerDialog } from '../modules/line-checker.js';
@@ -61,7 +63,23 @@ export function mountTextEditor(container, {
 
   const stateBadge = h('span', { class: 'save-state faint' }, 'Loading…');
 
-  const sizeInput = h('input', { type: 'range', min: '13', max: '24', step: '1', value: '16', 'aria-label': 'Font size' });
+  // Font size stepper (- 16 +), visible on desktop and phones
+  const SIZE_MIN = 13;
+  const SIZE_MAX = 24;
+  let currentSize = 16;
+  const sizeValue = h('span', { class: 'size-value', 'aria-live': 'polite' }, '16');
+  const sizeDownBtn = h('button', {
+    type: 'button', class: 'ghost size-step-btn', title: 'Smaller text', 'aria-label': 'Decrease font size',
+    onmousedown: (e) => e.preventDefault(),
+    onclick: () => setSize(currentSize - 1),
+  }, iconEl('minus', 14));
+  const sizeUpBtn = h('button', {
+    type: 'button', class: 'ghost size-step-btn', title: 'Larger text', 'aria-label': 'Increase font size',
+    onmousedown: (e) => e.preventDefault(),
+    onclick: () => setSize(currentSize + 1),
+  }, iconEl('plus', 14));
+  const sizeControl = h('div', { class: 'toolbar-size-control', role: 'group', 'aria-label': 'Font size' },
+    sizeDownBtn, sizeValue, sizeUpBtn);
   const exitFocus = h('button', { class: 'primary focus-exit', onclick: () => toggleFocus(false) }, 'Exit focus (Esc)');
 
   // Active round detection and "Mark Round Completed" button with spray animation
@@ -108,50 +126,28 @@ export function mountTextEditor(container, {
       : `<span class="lbl-full">Mark Round ${roundNum} Completed</span><span class="lbl-short">Complete</span>`;
   }
 
-  // Quick Highlight Swatches Bar in Header
-  const swatchButtons = HIGHLIGHT_PALETTE.map((p) =>
-    h('button', {
-      class: 'toolbar-swatch',
-      style: `background-color: ${p.color};`,
-      title: `Highlight selection: ${p.title}`,
-      'aria-label': `Highlight ${p.label}`,
-      onmousedown: (e) => {
-        // Prevent loss of selection on button click
-        e.preventDefault();
-      },
-      onclick: () => {
-        const ok = applyHighlight(p.color, area);
-        if (ok) {
-          refreshCounts();
-          setState('saving', 'Unsaved changes');
-          autosave();
-        } else {
-          toast('Select text inside the writing area to highlight');
-        }
-      },
-    })
-  );
-
-  const clearHighlightBtn = h('button', {
-    class: 'ghost small-btn toolbar-clear-hl',
-    title: 'Remove highlight from selection',
-    onmousedown: (e) => e.preventDefault(),
-    onclick: () => {
-      const ok = removeHighlight(area);
-      if (ok) {
-        refreshCounts();
-        setState('saving', 'Unsaved changes');
-        autosave();
-      }
+  // Collapsible highlight picker (Google Docs style): one button, palette opens on tap
+  const afterHighlightChange = () => {
+    refreshCounts();
+    setState('saving', 'Unsaved changes');
+    autosave();
+  };
+  const highlightPicker = createHighlightPicker({
+    getArea: () => area, // `area` is created below, so it is read lazily
+    applyColor: (color) => {
+      const ok = applyHighlight(color, area);
+      if (ok) afterHighlightChange();
+      return ok;
     },
-  }, h('span', { class: 'tb-icon' }, '✕'), h('span', { class: 'tb-text' }, ' No Highlight'));
-
-  const highlightBar = h('div', { class: 'editor-highlight-toolbar row', style: 'gap: 4px; align-items: center;' },
-    h('span', { class: 'small faint toolbar-hl-label', style: 'margin-right: 2px;' }, 'Highlight:'),
-    ...swatchButtons,
-    clearHighlightBtn
-  );
-  clearHighlightBtn.setAttribute('aria-label', 'Remove highlight');
+    removeColor: () => {
+      const ok = removeHighlight(area);
+      if (ok) afterHighlightChange();
+      return ok;
+    },
+    onNeedSelection: () => toast('Select text inside the writing area to highlight'),
+  });
+  // Group holds the highlight button and the size stepper so they share one row on phones
+  const formatGroup = h('div', { class: 'toolbar-format-group' }, highlightPicker.el, sizeControl);
 
   const findBtn = h('button', {
     class: 'ghost small-btn toolbar-find-btn',
@@ -160,24 +156,22 @@ export function mountTextEditor(container, {
     onclick: () => {
       if (onOpenFindBar) onOpenFindBar();
     },
-  }, h('span', { class: 'tb-icon' }, '🔍'), h('span', { class: 'tb-text' }, ' Find'));
+  }, iconEl('search', 18), h('span', { class: 'tb-text' }, ' Find'));
 
   // Ordered strictly from left to right:
-  // 1. Highlight Colors
-  // 2. Font Size
+  // 1. Highlight color button + 2. Font size stepper (grouped)
   // 3. Find
   // 4. Undo
   // 5. Redo
   // 6. Mark Round as Completed
   const showComplete = showWriterTools && !isDraft;
   const tools = showWriterTools ? [
-    highlightBar,
-    h('label', { class: 'toolbar-size-control' }, 'Size', sizeInput),
+    formatGroup,
     findBtn,
     undoBtn,
     redoBtn,
     ...(showComplete ? [markCompleteBtn] : []),
-  ] : [highlightBar];
+  ] : [highlightPicker.el];
 
   const bar = h('div', { class: 'editor-bar' },
     h('div', { class: 'row toolbar-status', style: 'gap: 8px; align-items: center;' },
@@ -424,10 +418,15 @@ export function mountTextEditor(container, {
     area.style.maxWidth = '100%';
     area.style.width = '100%';
   };
-  sizeInput.addEventListener('input', () => {
-    applyPrefs(sizeInput.value);
-    setSetting('editorSize', Number(sizeInput.value)).catch(() => {});
-  });
+  function setSize(value, persist = true) {
+    const n = Math.max(SIZE_MIN, Math.min(SIZE_MAX, Math.round(Number(value)) || 16));
+    currentSize = n;
+    sizeValue.textContent = String(n);
+    sizeDownBtn.disabled = n <= SIZE_MIN;
+    sizeUpBtn.disabled = n >= SIZE_MAX;
+    applyPrefs(n);
+    if (persist) setSetting('editorSize', n).catch(() => {});
+  }
 
   const appEl = () => document.getElementById('app');
   function toggleFocus(force) {
@@ -455,7 +454,7 @@ export function mountTextEditor(container, {
   const ready = (async () => {
     try {
       const [raw, s] = await Promise.all([load(), getSetting('editorSize', 16)]);
-      sizeInput.value = s; applyPrefs(s);
+      setSize(s, false);
       const text = raw ?? '';
       // Support existing plain-text as well as new rich-text format
       if (text.includes('<mark') || text.includes('<br>') || text.includes('<div>')) {
@@ -524,6 +523,7 @@ export function mountTextEditor(container, {
       if (destroyed) return;
       destroyed = true;
       closeContextMenu();
+      highlightPicker.destroy();
       autosave.cancel();
       document.removeEventListener('keydown', onDocKey);
       window.removeEventListener('beforeunload', onBeforeUnload);

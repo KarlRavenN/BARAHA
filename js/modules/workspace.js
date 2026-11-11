@@ -7,6 +7,7 @@ import { mountFindBar } from '../components/find-bar.js';
 import { schemesView } from './schemes.js';
 import { voiceNotesView } from './voice-notes.js';
 import { openGenericContextMenu } from '../components/context-menu.js';
+import { iconSvg } from '../components/icons.js';
 
 const SUPPORTING_TABS = [
   { key: 'rhymes', label: 'Rhymes' },
@@ -82,6 +83,9 @@ export async function workspaceView(root, { id, round, section = 'rhymes' }) {
   let findBarInstance = null;
 
   // Header Elements
+  // Inline SVG: the old ⭳ text glyph is missing from most phone fonts, so the button looked empty.
+  const exportIcon = h('span', { class: 'ws-export-icon', 'aria-hidden': 'true' });
+  exportIcon.innerHTML = iconSvg('export', 20);
   const exportTxtBtn = h('button', {
     class: 'ghost small-btn ws-export-btn',
     title: 'Export complete battle script to .txt',
@@ -95,7 +99,7 @@ export async function workspaceView(root, { id, round, section = 'rhymes' }) {
         toast(`Export failed: ${e.message}`, 'error');
       }
     },
-  }, h('span', { class: 'ws-export-icon', 'aria-hidden': 'true' }, '⭳'), h('span', { class: 'ws-export-label' }, 'Export Script (.txt)'));
+  }, exportIcon, h('span', { class: 'ws-export-label' }, 'Export Script (.txt)'));
 
   const togglePanelBtn = h('button', {
     class: 'ghost small-btn ws-toggle-panel-btn',
@@ -245,6 +249,11 @@ export async function workspaceView(root, { id, round, section = 'rhymes' }) {
         }
       });
 
+      // Once a long-press starts a drag, stop the strip from scrolling under the finger
+      tabEl.addEventListener('touchmove', (e) => {
+        if (longPressFired) e.preventDefault();
+      }, { passive: false });
+
       tabEl.addEventListener('pointermove', (e) => {
         if (capturedPointerId === null) return;
         const dist = Math.hypot(e.clientX - startX, e.clientY - startY);
@@ -356,7 +365,25 @@ export async function workspaceView(root, { id, round, section = 'rhymes' }) {
     }, '+');
 
     roundTabsContainer.replaceChildren(...tabEls, addRoundBtn);
+
+    // Scroll the strip so the active round is centred (no page scroll side effects)
+    requestAnimationFrame(() => {
+      const active = roundTabsContainer.querySelector('.round-tab-item.active');
+      if (!active) return;
+      const cr = roundTabsContainer.getBoundingClientRect();
+      const ar = active.getBoundingClientRect();
+      roundTabsContainer.scrollLeft += (ar.left + ar.width / 2) - (cr.left + cr.width / 2);
+    });
   }
+
+  // Mouse wheel scrolls the strip sideways when there are more rounds than fit
+  roundTabsContainer.addEventListener('wheel', (e) => {
+    if (roundTabsContainer.scrollWidth <= roundTabsContainer.clientWidth) return;
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+      roundTabsContainer.scrollLeft += e.deltaY;
+      e.preventDefault();
+    }
+  }, { passive: false });
 
   renderRoundTabs();
 

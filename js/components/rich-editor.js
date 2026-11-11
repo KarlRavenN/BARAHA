@@ -28,6 +28,39 @@ export const HIGHLIGHT_COLORS = [
   { label: 'Purple', color: '#7E22CE', text: '#ffffff', title: 'Purple (Scheme / Concept)' },
 ];
 
+
+/**
+ * Picks readable text for a highlight background.
+ * Dark and mid colours (including all the original BARAHA colours) keep white text;
+ * light colours (yellows, pastels, white) get near-black text.
+ */
+function parseCssColor(color) {
+  const c = String(color || '').trim().toLowerCase();
+  let m = c.match(/^#([0-9a-f]{3})$/);
+  if (m) return m[1].split('').map((x) => parseInt(x + x, 16));
+  m = c.match(/^#([0-9a-f]{6})(?:[0-9a-f]{2})?$/);
+  if (m) return [0, 2, 4].map((i) => parseInt(m[1].slice(i, i + 2), 16));
+  m = c.match(/^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})/);
+  if (m) return [Number(m[1]), Number(m[2]), Number(m[3])];
+  return null;
+}
+
+export function contrastText(color) {
+  const rgb = parseCssColor(color);
+  if (!rgb) return '#ffffff';
+  const [r, g, b] = rgb.map((v) => {
+    const x = v / 255;
+    return x <= 0.03928 ? x / 12.92 : Math.pow((x + 0.055) / 1.055, 2.4);
+  });
+  const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  return lum > 0.4 ? '#111111' : '#ffffff';
+}
+
+/** Only accept real colour values for highlights (hex or rgb/rgba). */
+export function isSafeHighlightColor(color) {
+  return parseCssColor(color) !== null;
+}
+
 /**
  * Strict sanitizer: preserves line breaks and allowed <mark> highlights with BARAHA palette colors.
  * Strips all script, iframe, objects, onclicks, and unknown HTML.
@@ -73,12 +106,12 @@ export function sanitizeRichContent(html) {
       const dataColor = node.getAttribute('data-color') || '';
       const matchedColor = dataColor || bgStyle;
 
-      if (matchedColor) {
+      if (matchedColor && isSafeHighlightColor(matchedColor)) {
         const mark = document.createElement('mark');
         mark.className = 'baraha-highlight';
         mark.setAttribute('data-color', matchedColor);
         mark.style.backgroundColor = matchedColor;
-        mark.style.color = '#ffffff';
+        mark.style.color = contrastText(matchedColor);
 
         for (const child of Array.from(node.childNodes)) {
           cleanNode(child, mark);
@@ -504,7 +537,7 @@ export function applyHighlight(color, allowedContainer = null) {
       if (existingMark.childNodes.length === 1 && existingMark.firstChild === node) {
         existingMark.setAttribute('data-color', color);
         existingMark.style.backgroundColor = color;
-        existingMark.style.color = '#ffffff';
+        existingMark.style.color = contrastText(color);
         existingMark.className = 'baraha-highlight';
       } else {
         // Split existingMark cleanly around node preserving exact DOM sibling order
@@ -512,7 +545,7 @@ export function applyHighlight(color, allowedContainer = null) {
         newMark.className = 'baraha-highlight';
         newMark.setAttribute('data-color', color);
         newMark.style.backgroundColor = color;
-        newMark.style.color = '#ffffff';
+        newMark.style.color = contrastText(color);
 
         // Move siblings after node to a cloned afterMark
         const afterMark = existingMark.cloneNode(false);
@@ -540,7 +573,7 @@ export function applyHighlight(color, allowedContainer = null) {
       mark.className = 'baraha-highlight';
       mark.setAttribute('data-color', color);
       mark.style.backgroundColor = color;
-      mark.style.color = '#ffffff';
+      mark.style.color = contrastText(color);
 
       node.parentNode.insertBefore(mark, node);
       mark.appendChild(node);
