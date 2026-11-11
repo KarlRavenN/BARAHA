@@ -19,6 +19,7 @@ This document outlines architectural seams for future development beyond Phase 3
 - **Local-First Mandate:** Cloud sync must remain strictly optional; local storage remains the primary source of truth.
 
 ### 2. External Rhyme Search (Optional Remote Opt-in)
+- **Implemented (English only):** `js/core/rhyme-provider.js` calls Datamuse behind a Settings opt-in. A fuller `RhymeProvider` abstraction (multiple providers) is still open.
 - Interface via a `RhymeProvider` abstraction: `search({ text, mode }) → Promise<Result[]>`.
 - Keep the local phonetic engine as the default offline engine. Any external API calls must require explicit opt-in in Settings to preserve writer privacy.
 

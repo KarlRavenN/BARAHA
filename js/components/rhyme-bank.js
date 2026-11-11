@@ -7,8 +7,10 @@ export function mountRhymeBank(container, { battleId = null, roundId = null, onI
   let activeTab = 'engine'; // 'engine' | 'saved'
   let savedScope = battleId ? 'all' : 'general'; // 'all' | 'battle' | 'general'
   let currentSearch = '';
-  const searchMode = 'lastWord'; // Last word matching only
+  const searchMode = 'auto'; // one word = last word, several words = phrase ending
   let engineResults = null;
+  let englishEnabled = false;
+  let englishTimer = null;
   let savedRhymes = [];
 
   const tabEngineBtn = h('button', { class: 'ghost small-btn active' }, 'Local Rhymes');
@@ -32,8 +34,23 @@ export function mountRhymeBank(container, { battleId = null, roundId = null, onI
       engineResults = null;
     } else {
       engineResults = await store.searchRhymeEngineWithBattleCorpus(word, battleId, searchMode);
+      englishEnabled = await store.getEnglishRhymesEnabled();
+      scheduleEnglish(word);
     }
     renderEngine();
+  }
+
+  // Optional online English suggestions: debounced so we never call per keystroke.
+  function scheduleEnglish(word) {
+    clearTimeout(englishTimer);
+    if (!englishEnabled || !engineResults?.englishHint) return;
+    englishTimer = setTimeout(async () => {
+      const list = await store.searchEnglishRhymes(word);
+      if (word !== currentSearch || !engineResults) return; // user kept typing
+      const local = new Set([...engineResults.exact, ...engineResults.multi, ...engineResults.slant]);
+      engineResults.english = list.filter((w) => !local.has(w)).slice(0, 40);
+      renderEngine();
+    }, 450);
   }
 
   function notifySync() {
@@ -102,8 +119,9 @@ export function mountRhymeBank(container, { battleId = null, roundId = null, onI
     const multi = engineResults?.multi || [];
     const slant = engineResults?.slant || [];
     const assoc = engineResults?.associations || [];
+    const english = engineResults?.english || [];
 
-    if (!exact.length && !multi.length && !slant.length && !assoc.length) {
+    if (!exact.length && !multi.length && !slant.length && !assoc.length && !english.length) {
       contentArea.replaceChildren(
         h('div', { class: 'rhyme-empty-tip empty-state-wrap' },
           h('div', { class: 'empty-state-icon' }, '🔍'),
@@ -116,22 +134,31 @@ export function mountRhymeBank(container, { battleId = null, roundId = null, onI
 
     const sections = [];
 
-    if (exact.length) {
-      sections.push(h('div', { class: 'rhyme-group' },
-        h('div', { class: 'rhyme-group-title' }, `Exact Rhymes (${exact.length})`, h('span', { class: 'rhyme-group-desc faint' }, 'Phonetic coda match')),
-        h('div', { class: 'rhyme-pill-cloud' }, exact.map((w) => wordPillWithSave(w)))));
-    }
-
     if (multi.length) {
       sections.push(h('div', { class: 'rhyme-group' },
-        h('div', { class: 'rhyme-group-title' }, `Multi-Syllable Rhymes (${multi.length})`, h('span', { class: 'rhyme-group-desc faint' }, '2–3 syllable cadence match')),
+        h('div', { class: 'rhyme-group-title' }, `Multi-Syllable Rhymes (${multi.length})`, h('span', { class: 'rhyme-group-desc faint' }, 'Last 2–3 syllables match · best first')),
         h('div', { class: 'rhyme-pill-cloud' }, multi.map((w) => wordPillWithSave(w)))));
+    }
+
+    if (exact.length) {
+      sections.push(h('div', { class: 'rhyme-group' },
+        h('div', { class: 'rhyme-group-title' }, `Exact Rhymes (${exact.length})`, h('span', { class: 'rhyme-group-desc faint' }, 'Same ending sound')),
+        h('div', { class: 'rhyme-pill-cloud' }, exact.map((w) => wordPillWithSave(w)))));
     }
 
     if (slant.length) {
       sections.push(h('div', { class: 'rhyme-group' },
         h('div', { class: 'rhyme-group-title' }, `Slant / Assonance (${slant.length})`, h('span', { class: 'rhyme-group-desc faint' }, 'Vowel harmony & consonant slant')),
         h('div', { class: 'rhyme-pill-cloud' }, slant.map((w) => wordPillWithSave(w)))));
+    }
+
+    if (english.length) {
+      sections.push(h('div', { class: 'rhyme-group' },
+        h('div', { class: 'rhyme-group-title' }, `English Suggestions (${english.length})`, h('span', { class: 'rhyme-group-desc faint' }, 'Online · Datamuse (English only)')),
+        h('div', { class: 'rhyme-pill-cloud' }, english.map((w) => wordPillWithSave(w, 'English suggestion (online)')))));
+    } else if (engineResults?.englishHint && !englishEnabled) {
+      sections.push(h('div', { class: 'small faint', style: 'padding: 4px 2px;' },
+        'English word? Turn on English rhyme suggestions in Settings for a bigger English pool.'));
     }
 
     if (assoc.length) {
