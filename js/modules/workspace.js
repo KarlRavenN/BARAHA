@@ -7,7 +7,7 @@ import { mountFindBar } from '../components/find-bar.js';
 import { schemesView } from './schemes.js';
 import { voiceNotesView } from './voice-notes.js';
 import { openGenericContextMenu } from '../components/context-menu.js';
-import { iconSvg } from '../components/icons.js';
+import { iconSvg, iconEl } from '../components/icons.js';
 
 const SUPPORTING_TABS = [
   { key: 'rhymes', label: 'Rhymes' },
@@ -100,6 +100,15 @@ export async function workspaceView(root, { id, round, section = 'rhymes' }) {
       }
     },
   }, exportIcon, h('span', { class: 'ws-export-label' }, 'Export Script (.txt)'));
+
+  // Focus mode button (desktop: "Focus"; phones: icon only). Exit button is created by the editor.
+  const focusBtn = h('button', {
+    type: 'button',
+    class: 'ghost small-btn ws-focus-btn',
+    title: 'Focus mode (Alt+F)',
+    'aria-label': 'Enter focus mode',
+    onclick: () => { if (editorInstance && editorInstance.toggleFocus) editorInstance.toggleFocus(true); },
+  }, iconEl('expand', 18), h('span', { class: 'ws-focus-label' }, 'Focus'));
 
   const togglePanelBtn = h('button', {
     class: 'ghost small-btn ws-toggle-panel-btn',
@@ -398,6 +407,7 @@ export async function workspaceView(root, { id, round, section = 'rhymes' }) {
         h('h1', { class: 'workspace-title' }, battle.title),
         h('span', { class: 'muted' }, [battle.opponentName && `vs ${battle.opponentName}`, battle.league].filter(Boolean).join(' · ') || 'Battle Workspace')),
       h('div', { class: 'row', style: 'gap: 8px;' },
+        focusBtn,
         exportTxtBtn,
         togglePanelBtn)),
     roundTabsContainer);
@@ -407,10 +417,11 @@ export async function workspaceView(root, { id, round, section = 'rhymes' }) {
   const reopenPill = h('button', {
     class: 'workspace-reopen-pill',
     title: 'Open Supporting Tools (Rhymes, Schemes, Voice)',
+    'aria-label': 'Open Rhymes and Tools',
     style: isPanelCollapsed ? 'display: inline-flex;' : 'display: none;',
     onclick: () => toggleSupportingPanel(false),
   }, h('span', { class: 'pill-label-desktop' }, '« Supporting Tools'),
-     h('span', { class: 'pill-label-mobile' }, h('span', { class: 'pill-mobile-icon', 'aria-hidden': 'true' }, '≣'), ' Rhymes & Tools'));
+     h('span', { class: 'pill-label-mobile' }, h('span', { class: 'pill-mobile-icon', 'aria-hidden': 'true' }, '≣'), h('span', { class: 'pill-mobile-text' }, ' Rhymes & Tools')));
 
   const workspaceMain = h('div', { class: 'workspace-main' },
     reopenPill,

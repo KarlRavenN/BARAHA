@@ -3,7 +3,7 @@ import { getSetting, setSetting } from '../core/store.js';
 import { h, toast, confirmDialog } from '../core/ui.js';
 import { openContextMenu, closeContextMenu } from './context-menu.js';
 import { createHighlightPicker } from './highlight-picker.js';
-import { iconEl } from './icons.js';
+import { iconEl, iconSvg } from './icons.js';
 import { draftFormDialog } from '../modules/drafts.js';
 import { schemeFormDialog } from '../modules/schemes.js';
 import { lineCheckerDialog } from '../modules/line-checker.js';
@@ -28,6 +28,10 @@ import {
  * - Undo & Redo controls.
  * - Highlight tools in toolbar and custom BARAHA context menu.
  */
+// Shared across editor instances: switching rounds re-mounts the editor while focus mode stays on.
+let enteredFullscreen = false;
+const inWorkspaceRoute = () => /^#\/battle\//.test(location.hash);
+
 export function mountTextEditor(container, {
   label = 'Editor',
   placeholder = 'Write here…',
@@ -80,7 +84,13 @@ export function mountTextEditor(container, {
   }, iconEl('plus', 14));
   const sizeControl = h('div', { class: 'toolbar-size-control', role: 'group', 'aria-label': 'Font size' },
     sizeDownBtn, sizeValue, sizeUpBtn);
-  const exitFocus = h('button', { class: 'primary focus-exit', onclick: () => toggleFocus(false) }, 'Exit focus (Esc)');
+  const exitFocus = h('button', {
+    type: 'button',
+    class: 'primary focus-exit',
+    title: 'Exit focus mode (Esc)',
+    'aria-label': 'Exit focus mode',
+    onclick: () => toggleFocus(false),
+  }, iconEl('collapse', 18), h('span', { class: 'focus-exit-label' }, 'Exit focus (Esc)'));
 
   // Active round detection and "Mark Round Completed" button with spray animation
   const roundNum = roundNumber || (label.match(/round\s*(\d+)/i)?.[1]) || 1;
@@ -116,14 +126,25 @@ export function mountTextEditor(container, {
         toast('Could not update round status', 'error');
       }
     },
-  }, h('span', { class: 'lbl-full' }, `Mark Round ${roundNum} Completed`), h('span', { class: 'lbl-short' }, 'Complete'));
+  });
+  updateCompleteBtn();
 
   function updateCompleteBtn() {
     markCompleteBtn.classList.toggle('completed', isRoundCompleted);
     markCompleteBtn.classList.toggle('sprayed', isRoundCompleted);
+    // .complete-icon (check) is only shown on phones, where the button is icon-only
+    const checkIcon = `<span class="complete-icon" aria-hidden="true">${iconSvg('check', 20)}</span>`;
     markCompleteBtn.innerHTML = isRoundCompleted
-      ? `<span class="spray-stencil-icon">✓</span> <span class="lbl-full">Round ${roundNum} Completed</span><span class="lbl-short">Completed</span>`
-      : `<span class="lbl-full">Mark Round ${roundNum} Completed</span><span class="lbl-short">Complete</span>`;
+      ? `${checkIcon}<span class="spray-stencil-icon">✓</span> <span class="lbl-full">Round ${roundNum} Completed</span><span class="lbl-short">Completed</span>`
+      : `${checkIcon}<span class="lbl-full">Mark Round ${roundNum} Completed</span><span class="lbl-short">Complete</span>`;
+    const text = isRoundCompleted
+      ? `Round ${roundNum} completed. Activate to mark as in progress`
+      : `Mark Round ${roundNum} as completed`;
+    markCompleteBtn.setAttribute('aria-label', text);
+    markCompleteBtn.setAttribute('aria-pressed', String(isRoundCompleted));
+    markCompleteBtn.title = isRoundCompleted
+      ? `Round ${roundNum} completed (click to mark as in progress)`
+      : `Mark Round ${roundNum} as completed (updates battle progress)`;
   }
 
   // Collapsible highlight picker (Google Docs style): one button, palette opens on tap
@@ -196,7 +217,10 @@ export function mountTextEditor(container, {
   const linesCount = h('span', {}, '0 lines');
   const wordsCount = h('span', {}, '0 words');
   const charsCount = h('span', {}, '0 chars');
+  // On phones the save status moves from the top toolbar to this status line (CSS shows/hides each copy)
+  const footState = h('span', { class: 'save-state foot-save-state', 'aria-live': 'polite' }, 'Loading…');
   const foot = h('div', { class: 'editor-foot' },
+    footState, h('span', { class: 'faint foot-state-sep', 'aria-hidden': 'true' }, '·'),
     linesCount, h('span', { class: 'faint' }, '·'),
     wordsCount, h('span', { class: 'faint' }, '·'),
     charsCount);
@@ -220,6 +244,8 @@ export function mountTextEditor(container, {
   function setState(kind, text) {
     stateBadge.className = `save-state ${kind}`;
     stateBadge.textContent = text;
+    footState.className = `save-state foot-save-state ${kind}`;
+    footState.textContent = text;
   }
 
   function getRawHtml() {
@@ -429,12 +455,67 @@ export function mountTextEditor(container, {
   }
 
   const appEl = () => document.getElementById('app');
+  const phoneMQ = window.matchMedia('(max-width: 768px)');
+
+  // On phones the on-screen keyboard shrinks the *visual* viewport but not the layout viewport.
+  // While focus mode is on, mirror the visual viewport into CSS variables so the toolbar
+  // and status line stay visible above the keyboard.
+  let vvCleanup = null;
+  function bindViewport(on) {
+    if (vvCleanup) { vvCleanup(); vvCleanup = null; }
+    const root = document.documentElement;
+    if (!on) {
+      root.style.removeProperty('--vv-h');
+      root.style.removeProperty('--vv-top');
+      return;
+    }
+    const vv = window.visualViewport;
+    if (!vv) return; // CSS falls back to 100dvh
+    const update = () => {
+      root.style.setProperty('--vv-h', `${Math.round(vv.height)}px`);
+      root.style.setProperty('--vv-top', `${Math.round(vv.offsetTop)}px`);
+    };
+    update();
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    vvCleanup = () => {
+      vv.removeEventListener('resize', update);
+      vv.removeEventListener('scroll', update);
+    };
+  }
+
+  // Progressive enhancement only: the CSS focus mode works without it (iPhone Safari has no Fullscreen API).
+  function tryFullscreen(on) {
+    try {
+      if (on) {
+        const el = document.documentElement;
+        if (phoneMQ.matches && el.requestFullscreen && !document.fullscreenElement) {
+          enteredFullscreen = true;
+          const p = el.requestFullscreen();
+          if (p && p.catch) p.catch(() => { enteredFullscreen = false; });
+        }
+      } else if (enteredFullscreen) {
+        enteredFullscreen = false;
+        if (document.fullscreenElement && document.exitFullscreen) {
+          const p = document.exitFullscreen();
+          if (p && p.catch) p.catch(() => {});
+        }
+      }
+    } catch { /* unsupported: ignore */ }
+  }
+
   function toggleFocus(force) {
-    const on = force ?? !appEl().classList.contains('focus');
-    appEl().classList.toggle('focus', on);
+    const app = appEl();
+    if (!app) return;
+    const on = force ?? !app.classList.contains('focus');
+    app.classList.toggle('focus', on);
     exitFocus.remove();
-    if (on) document.body.append(exitFocus);
-    area.focus();
+    // The exit button lives inside #app so it follows the visual viewport on phones
+    if (on) app.append(exitFocus);
+    bindViewport(on);
+    tryFullscreen(on);
+    // Don't pop the keyboard open on phones just because focus mode was toggled
+    if (!phoneMQ.matches) area.focus();
   }
   const onDocKey = (e) => {
     if (e.key === 'Escape' && appEl().classList.contains('focus')) toggleFocus(false);
@@ -484,9 +565,13 @@ export function mountTextEditor(container, {
     }
   })();
 
+  // Focus mode kept across a round switch: re-attach the exit button and viewport tracking
+  if (appEl()?.classList.contains('focus')) toggleFocus(true);
+
   return {
     ready,
     focus: () => area.focus(),
+    toggleFocus,
     getText: () => getPlainText(),
     getHTML: () => getRawHtml(),
     insertText(str) {
@@ -527,8 +612,16 @@ export function mountTextEditor(container, {
       autosave.cancel();
       document.removeEventListener('keydown', onDocKey);
       window.removeEventListener('beforeunload', onBeforeUnload);
-      appEl().classList.remove('focus');
       exitFocus.remove();
+      if (inWorkspaceRoute()) {
+        // Switching rounds: the next editor re-applies focus mode, so don't flash the full UI back.
+        if (vvCleanup) { vvCleanup(); vvCleanup = null; }
+      } else {
+        // Leaving the workspace resets focus mode completely.
+        appEl()?.classList.remove('focus');
+        bindViewport(false);
+        tryFullscreen(false);
+      }
       await ready;
       await persist();
       if (getRawHtml() !== lastSaved) toast('Could not save your last changes. Copy your text before leaving.', 'error');
