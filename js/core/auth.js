@@ -1,7 +1,10 @@
 // Auth module: all Supabase Auth calls in one place.
 // UI never calls supabase.auth directly — it goes through these functions.
 
-import { supabase } from './supabase.js';
+import { supabase, getUser } from './supabase.js';
+
+// main.js imports getUser from here, so re-export it (it lives in supabase.js)
+export { getUser };
 
 // ── Sign up ────────────────────────────────────────────────────────────────
 
@@ -89,7 +92,8 @@ export async function updatePassword(newPassword) {
 // ── Sign out ───────────────────────────────────────────────────────────────
 
 export async function signOut() {
-  const { error } = await supabase.auth.signOut();
+    // 'local' = sign out this device only
+  const { error } = await supabase.auth.signOut({ scope: 'local' });
   return { error };
 }
 
