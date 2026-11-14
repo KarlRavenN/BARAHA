@@ -218,6 +218,10 @@ a { color: inherit; text-decoration: none; }
   font-style: italic;
   color: var(--text-faint);
 }
+.nav-account-wrap {
+  position: relative;
+  margin-bottom: 6px;
+}
 .nav-edition-badge {
   font-family: var(--font-subhead);
   font-size: 10px;

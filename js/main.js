@@ -9,6 +9,9 @@ import { lineCheckerView } from './modules/line-checker.js';
 import { searchView } from './modules/search.js';
 import { voiceNotesView } from './modules/voice-notes.js';
 import { settingsView } from './modules/settings.js';
+import { mountAuthFlow } from './modules/auth-screens.js';
+import { buildAccountMenu } from './components/account-menu.js';
+import { getUser, onAuthChange } from './core/auth.js';
 
 const view = document.getElementById('view');
 const nav = document.getElementById('nav');
@@ -39,6 +42,9 @@ const NAV = [
   { href: '#/settings', label: 'Settings', match: (p) => p.startsWith('/settings') },
 ];
 
+// Current signed-in user, kept in sync by onAuthChange
+let currentUser = null;
+
 function drawNav(path) {
   let isDrawerOpen = false;
 
@@ -51,8 +57,6 @@ function drawNav(path) {
       backdrop.id = 'mobileNavBackdrop';
       backdrop.className = 'mobile-nav-backdrop';
       backdrop.onclick = () => toggleDrawer(false);
-      // Must live inside #app: #app creates its own stacking context (z-index: 1),
-      // so a body-level backdrop would always paint above the drawer and block taps.
       (document.getElementById('app') || document.body).appendChild(backdrop);
     }
     backdrop.classList.toggle('active', isDrawerOpen);
@@ -74,6 +78,16 @@ function drawNav(path) {
     'aria-label': 'Close Navigation',
     onclick: () => toggleDrawer(false),
   }, '✕');
+
+  // Account menu at the bottom of the nav
+  const accountSection = currentUser
+    ? h('div', { class: 'nav-account-wrap' },
+        buildAccountMenu(currentUser, () => {
+          // After sign out, reload to show auth gate
+          window.location.reload();
+        })
+      )
+    : null;
 
   nav.replaceChildren(
     h('div', { class: 'brand mobile-brand-bar' },
@@ -98,10 +112,12 @@ function drawNav(path) {
       h('span', { class: 'nav-label-text' }, n.label)))
     ),
     h('div', { class: 'nav-footer' },
-      h('div', { class: 'nav-credo faint' }, '“Every bar is a card.”')
+      ...(accountSection ? [accountSection] : []),
+      h('div', { class: 'nav-credo faint' }, '"Every bar is a card."')
     )
   );
 }
+
 document.addEventListener('baraha:route', (e) => {
   drawNav(e.detail.path);
   const backdrop = document.getElementById('mobileNavBackdrop');
@@ -123,7 +139,7 @@ function fatal(message) {
     h('p', { class: 'notice' }, message)));
 }
 
-async function boot() {
+async function startApp() {
   if (!('indexedDB' in window)) return fatal('This browser does not support IndexedDB, which BARAHA needs to save your work.');
   try {
     setBackend(await createIndexedDbBackend());
@@ -155,14 +171,12 @@ async function boot() {
   route('/voice', guard((v) => voiceNotesView(v, { isGlobalInbox: true })));
   route('/settings', guard(settingsView));
 
-  // Global Keyboard Shortcuts (Part 9)
+  // Global Keyboard Shortcuts
   window.addEventListener('keydown', (e) => {
-    // Ctrl + / : Global Search
     if ((e.ctrlKey || e.metaKey) && e.key === '/') {
       e.preventDefault();
       location.hash = '#/search';
     }
-    // Esc: Close open modal overlay if present
     if (e.key === 'Escape') {
       const scrim = document.querySelector('.scrim');
       if (scrim) scrim.remove();
@@ -181,6 +195,43 @@ async function boot() {
     document.documentElement.style.setProperty('--wall-shift-y', `${shiftY.toFixed(1)}px`);
   }, { passive: true });
 
+  // Draw the nav now that we know the user
+  drawNav(location.hash.slice(1) || '/');
+
   await startRouter();
 }
+
+async function boot() {
+  // Keep currentUser in sync whenever the session changes
+  onAuthChange((event, session) => {
+    currentUser = session?.user ?? null;
+    // Redraw nav to show/hide account menu
+    drawNav(location.hash.slice(1) || '/');
+
+    // If the user signed out while the app is running, show the auth gate
+    if (event === 'SIGNED_OUT') {
+      window.location.reload();
+    }
+  });
+
+  // Check for an existing session first
+  currentUser = await getUser();
+
+  if (currentUser) {
+    // Already signed in — go straight to the app
+    await startApp();
+  } else {
+    // No session — show the auth flow over the whole screen
+    const authContainer = document.createElement('div');
+    document.body.appendChild(authContainer);
+
+    mountAuthFlow(authContainer, async () => {
+      // User just signed in — get the fresh user object and launch the app
+      currentUser = await getUser();
+      authContainer.remove();
+      await startApp();
+    });
+  }
+}
+
 boot();
