@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node serve.mjs",
     "start:py": "python serve.py",
-    "test": "node --test tests/store.test.js",
+    "test": "node --test tests/store.test.js tests/sync-tracking.test.js",
     "test:e2e": "python tests/e2e.py"
   },
   "engines": { "node": ">=18" }

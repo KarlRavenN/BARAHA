@@ -8,7 +8,13 @@
 // IMPORTANT: every write resolves only after the IndexedDB transaction has
 // completed (tx.oncomplete), so the UI can truthfully show "Saved".
 
+import { withSyncTracking } from './sync-tracking.js';
+
+/** Legacy single database (before accounts). Kept only as the fallback when no user id is given. */
 export const DB_NAME = 'baraha';
+
+/** One local database per signed-in account, so two accounts in one browser never share data. */
+export const dbNameFor = (userId) => (userId ? `baraha-${userId}` : DB_NAME);
 
 /**
  * Store definitions. keyPath + secondary indexes.
@@ -34,6 +40,17 @@ export const STORES = {
   settings:       { keyPath: 'key', indexes: [] },
   pronunciations: { keyPath: 'id', indexes: ['word'] },
   pinnedBars:     { keyPath: 'id', indexes: ['battleId', 'roundId'] },
+};
+
+/**
+ * Sync bookkeeping stores (see sync-tracking.js). Kept out of STORES on purpose:
+ * STORES is the list of user data, and the v1 migration loops over it.
+ *   syncQueue: one entry per changed record (qid = "store:id") waiting to be pushed
+ *   syncMeta:  per-device values (deviceId, lastPulledAt)
+ */
+export const SYNC_STORES = {
+  syncQueue: { keyPath: 'qid', indexes: ['store'] },
+  syncMeta:  { keyPath: 'key', indexes: [] },
 };
 
 /**
@@ -64,12 +81,20 @@ export const MIGRATIONS = [
       store.createIndex('roundId', 'roundId', { unique: false });
     }
   },
+  // v4: sync bookkeeping stores
+  (idb) => {
+    for (const [name, def] of Object.entries(SYNC_STORES)) {
+      if (idb.objectStoreNames.contains(name)) continue;
+      const store = idb.createObjectStore(name, { keyPath: def.keyPath });
+      for (const index of def.indexes) store.createIndex(index, index, { unique: false });
+    }
+  },
 ];
 export const SCHEMA_VERSION = MIGRATIONS.length;
 
-function openIdb() {
+function openIdb(name) {
   return new Promise((resolve, reject) => {
-    const req = indexedDB.open(DB_NAME, SCHEMA_VERSION);
+    const req = indexedDB.open(name, SCHEMA_VERSION);
     req.onupgradeneeded = (e) => {
       for (let v = e.oldVersion; v < e.newVersion; v++) MIGRATIONS[v](req.result, req.transaction);
     };
@@ -86,9 +111,23 @@ const txDone = (tx) => new Promise((res, rej) => {
   tx.onabort = () => rej(tx.error || new Error('Transaction aborted'));
 });
 
-/** Create the IndexedDB-backed backend. */
-export async function createIndexedDbBackend() {
-  const idb = await openIdb();
+/** { storeName: keyPath } for every user-data store. */
+export const KEY_PATHS = Object.fromEntries(Object.entries(STORES).map(([n, d]) => [n, d.keyPath]));
+
+/**
+ * Create the IndexedDB-backed backend for one account.
+ * Every write through it is stamped and queued for sync (see sync-tracking.js).
+ */
+export async function createIndexedDbBackend(userId) {
+  const backend = withSyncTracking(await createRawIndexedDbBackend(dbNameFor(userId)), KEY_PATHS);
+  if (!(await backend.sync.getMeta('deviceId'))) {
+    await backend.sync.setMeta('deviceId', crypto.randomUUID());
+  }
+  return backend;
+}
+
+async function createRawIndexedDbBackend(name) {
+  const idb = await openIdb(name);
   return {
     kind: 'indexeddb',
     async get(store, key) {
@@ -108,7 +147,11 @@ export async function createIndexedDbBackend() {
       for (const o of ops) {
         const s = tx.objectStore(o.store);
         if (o.op === 'put') s.put(o.value);
-        else if (o.op === 'delete') s.delete(o.key);
+        else if (o.op === 'delete' && o.ifModifiedAt !== undefined) {
+          // conditional delete (used to ack pushed sync entries): only if unchanged
+          const g = s.get(o.key);
+          g.onsuccess = () => { if (g.result && g.result.modifiedAt === o.ifModifiedAt) s.delete(o.key); };
+        } else if (o.op === 'delete') s.delete(o.key);
         else throw new Error(`Unknown op ${o.op}`);
       }
       await txDone(tx);

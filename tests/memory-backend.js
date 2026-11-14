@@ -1,9 +1,21 @@
 // In-memory backend with the same interface as the IndexedDB backend (js/core/db.js).
 // Used ONLY by tests. Batches are atomic: if any op throws, nothing is applied.
-import { STORES } from '../js/core/db.js';
+import { STORES, SYNC_STORES, KEY_PATHS } from '../js/core/db.js';
+import { withSyncTracking } from '../js/core/sync-tracking.js';
 
-export function createMemoryBackend() {
-  const data = Object.fromEntries(Object.keys(STORES).map((n) => [n, new Map()]));
+const ALL_STORES = { ...STORES, ...SYNC_STORES };
+
+/**
+ * By default the backend is wrapped with sync tracking, exactly like production, so every
+ * existing test also exercises stamping + queueing. Pass { track: false } for the raw one.
+ */
+export function createMemoryBackend({ track = true, now } = {}) {
+  const raw = createRawMemoryBackend();
+  return track ? withSyncTracking(raw, KEY_PATHS, now) : raw;
+}
+
+function createRawMemoryBackend() {
+  const data = Object.fromEntries(Object.keys(ALL_STORES).map((n) => [n, new Map()]));
   const clone = (v) => (v === undefined ? v : structuredClone(v));
   return {
     kind: 'memory',
@@ -17,8 +29,11 @@ export function createMemoryBackend() {
       try {
         for (const o of ops) {
           if (!data[o.store]) throw new Error(`No such store ${o.store}`);
-          if (o.op === 'put') data[o.store].set(o.value[STORES[o.store].keyPath], clone(o.value));
-          else if (o.op === 'delete') data[o.store].delete(o.key);
+          if (o.op === 'put') data[o.store].set(o.value[ALL_STORES[o.store].keyPath], clone(o.value));
+          else if (o.op === 'delete') {
+            const cur = data[o.store].get(o.key);
+            if (o.ifModifiedAt === undefined || (cur && cur.modifiedAt === o.ifModifiedAt)) data[o.store].delete(o.key);
+          }
           else throw new Error(`Unknown op ${o.op}`);
         }
       } catch (e) {
@@ -26,6 +41,6 @@ export function createMemoryBackend() {
         throw e;
       }
     },
-    async clearAll() { Object.values(data).forEach((m) => m.clear()); },
+    async clearAll() { Object.keys(STORES).forEach((n) => data[n].clear()); }, // like production: sync stores survive
   };
 }

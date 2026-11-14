@@ -55,3 +55,13 @@ To change the schema: **append** a function to `MIGRATIONS` (never edit a shippe
   "data": { "battles": [...], "rounds": [...], "finalMaterials": [...], "...every store...": [] } }
 ```
 `validateBackup` checks format marker, version (rejects newer), list shape, key presence on every record, round→battle references and the exactly-3-rounds rule. `restoreAll` validates first, then deletes all current records and inserts the backup's in one atomic batch (replace, not merge — hence no duplicates). `audioBlobs` are exported empty; a ZIP backup with real audio is future work.
+
+
+## Per-account database and sync bookkeeping (Stage 1 of cloud sync)
+
+- **One local database per account:** `baraha-<userId>` (`dbNameFor(userId)` in `js/core/db.js`). The old shared `baraha` database is no longer opened.
+- **`modifiedAt`:** every synced record gets an ISO `modifiedAt` on each write, stamped in ONE place (`js/core/sync-tracking.js`, wrapping `backend.batch`). It is separate from `updatedAt` on purpose: `updatedAt` controls the order of The Wall.
+- **`syncQueue`** (migration v4, key `qid` = `store:id`): one pending change per record `{ qid, store, id, modifiedAt, deleted }`. Written in the same atomic transaction as the data. Deletes remove the record locally and queue a tombstone (`deleted: true`).
+- **`syncMeta`** (key `key`): per-device values such as `deviceId` (and later `lastPulledAt`).
+- **Not synced as records:** `settings`, `audioBlobs`, `syncQueue`, `syncMeta`.
+- **`backend.sync` API:** `getPending`, `pendingCount`, `ack` (conditional: an entry edited after it was read stays queued), `applyRemote` (writes cloud data without stamping or queueing), `getMeta`, `setMeta`.
