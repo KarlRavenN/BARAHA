@@ -167,3 +167,12 @@ Status legend: **[T]** Completed and tested · **[I]** Implemented but not fully
 | Whole-library word pool | [T] | Words and bar endings (last 2-3 words of each line) from ALL battles, drafts and saved rhymes feed the local search. |
 | Optional English suggestions (Datamuse) | [T] | Off by default (Settings > Rhyme Engine). Sends only the single English word searched, debounced, cached in localStorage. |
 | Ending tag fix | [T] | `kalaban` now shows `-aban` (was `-ala`). |
+
+
+## Cloud sync, Stage 1: local foundations (sync-stage-1)
+| Feature | Status | Notes |
+|---|---|---|
+| Per-account local database | [T] | `baraha-<userId>`; two accounts in one browser never share data. A different account signing in reloads the app. |
+| Change stamping + tombstones | [T] | `modifiedAt` and `syncQueue` written atomically with every data write; cascaded deletes and restore-from-backup are tracked. |
+| Sync bookkeeping stores | [T] | `syncQueue`, `syncMeta` (migration v4). |
+| Network sync | [ ] | Stage 2 (`sync.js` + Supabase `sync_records`). Nothing is sent to the cloud yet. |

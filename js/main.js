@@ -44,6 +44,8 @@ const NAV = [
 
 // Current signed-in user, kept in sync by onAuthChange
 let currentUser = null;
+// Which account's local database is open (see db.js dbNameFor). Never mix accounts in one session.
+let backendUserId = null;
 
 function drawNav(path) {
   let isDrawerOpen = false;
@@ -142,7 +144,9 @@ function fatal(message) {
 async function startApp() {
   if (!('indexedDB' in window)) return fatal('This browser does not support IndexedDB, which BARAHA needs to save your work.');
   try {
-    setBackend(await createIndexedDbBackend());
+    if (!currentUser?.id) return fatal('Please sign in to open BARAHA.');
+    setBackend(await createIndexedDbBackend(currentUser.id));
+    backendUserId = currentUser.id;
     await migrateRoundsAndDrafts();
   } catch (e) {
     console.error(e);
@@ -205,6 +209,12 @@ async function boot() {
   // Keep currentUser in sync whenever the session changes
   onAuthChange((event, session) => {
     currentUser = session?.user ?? null;
+    // A different account signed in while another account's data is open: reload so the app
+    // restarts on that account's own database.
+    if (backendUserId && currentUser && currentUser.id !== backendUserId) {
+      window.location.reload();
+      return;
+    }
     // Redraw nav to show/hide account menu
     drawNav(location.hash.slice(1) || '/');
 
