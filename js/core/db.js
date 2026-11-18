@@ -146,11 +146,16 @@ async function createRawIndexedDbBackend(name) {
       const tx = idb.transaction(names, 'readwrite');
       for (const o of ops) {
         const s = tx.objectStore(o.store);
-        if (o.op === 'put') s.put(o.value);
+        if (o.op === 'put' && o.ifModifiedAt !== undefined) {
+          // conditional put (cloud pulls): only if the record is still at the version we read.
+          // null means "must not exist" (a record without modifiedAt counts as unstamped too).
+          const g = s.get(o.value[s.keyPath]);
+          g.onsuccess = () => { if ((g.result?.modifiedAt ?? null) === o.ifModifiedAt) s.put(o.value); };
+        } else if (o.op === 'put') s.put(o.value);
         else if (o.op === 'delete' && o.ifModifiedAt !== undefined) {
-          // conditional delete (used to ack pushed sync entries): only if unchanged
+          // conditional delete (acking pushed entries, cloud tombstones): only if unchanged
           const g = s.get(o.key);
-          g.onsuccess = () => { if (g.result && g.result.modifiedAt === o.ifModifiedAt) s.delete(o.key); };
+          g.onsuccess = () => { if (g.result && (g.result.modifiedAt ?? null) === o.ifModifiedAt) s.delete(o.key); };
         } else if (o.op === 'delete') s.delete(o.key);
         else throw new Error(`Unknown op ${o.op}`);
       }

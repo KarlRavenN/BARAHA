@@ -36,6 +36,9 @@ async function resolve() {
   location.hash = '#/';
 }
 
+/** Re-render the current page (flushes unsaved text first, like any navigation). */
+export const refresh = () => resolve();
+
 export const startRouter = () => { window.addEventListener('hashchange', resolve); return resolve(); };
 
 /** Best-effort flush for tab close. Browsers may not wait for async work; see docs. */

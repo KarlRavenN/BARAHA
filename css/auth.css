@@ -310,3 +310,37 @@
 .account-dropdown-signout:hover {
   background: rgba(242, 97, 97, 0.08);
 }
+
+
+/* ── Sync status (account menu) ───────────────────────────────────────────── */
+.account-menu-trigger { position: relative; }
+.sync-dot {
+  position: absolute; right: -1px; bottom: -1px;
+  width: 10px; height: 10px; border-radius: 50%;
+  border: 2px solid var(--surface, #1e1c1b);
+  background: #6b6b6b;
+}
+.sync-dot-inline { position: static; flex: 0 0 auto; width: 9px; height: 9px; border: 0; }
+.sync-dot[data-state="idle"] { background: #3fae63; }
+.sync-dot[data-state="syncing"] { background: #d9a21b; }
+.sync-dot[data-state="offline"] { background: #8a8a8a; }
+.sync-dot[data-state="error"] { background: #d64545; }
+.sync-dot[data-state="disabled"] { background: #6b6b6b; }
+.account-dropdown-sync {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 8px 12px; font-size: 12.5px; color: var(--text-dim, #b5b0ad);
+}
+.account-sync-text { flex: 1 1 auto; min-width: 0; }
+.account-sync-now {
+  flex: 0 0 auto; padding: 3px 8px; font-size: 12px; border-radius: 6px;
+  background: transparent; color: var(--text-dim, #b5b0ad); border: 1px solid var(--line, #3a3634);
+}
+.account-sync-now:hover { color: var(--white, #fff); border-color: #8E2A22; }
+.account-dropdown-sync[data-state="syncing"] .account-sync-now { opacity: 0.5; pointer-events: none; }
+@media (prefers-reduced-motion: no-preference) {
+  .sync-dot[data-state="syncing"] { animation: sync-pulse 1s ease-in-out infinite; }
+  @keyframes sync-pulse { 50% { opacity: 0.35; } }
+}
+
+.account-avatar { position: relative; }
+.account-avatar .sync-dot { right: -3px; bottom: -3px; }
