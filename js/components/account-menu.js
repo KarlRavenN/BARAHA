@@ -17,6 +17,42 @@ export function buildAccountMenu(user, onSignedOut) {
   let menuOpen = false;
   let menuEl = null;
 
+  // ---- sync status (set by main.js via the 'baraha:sync-status' event) ----
+  const syncDot = h('span', { class: 'sync-dot', 'aria-hidden': 'true' });
+  const syncText = h('span', { class: 'account-sync-text' }, 'Sync starting…');
+  const syncNowBtn = h('button', {
+    class: 'account-sync-now', type: 'button', title: 'Sync now',
+    onclick: (e) => { e.stopPropagation(); window.dispatchEvent(new CustomEvent('baraha:sync-now')); },
+  }, 'Sync now');
+  const syncRow = h('div', { class: 'account-dropdown-sync', role: 'status' },
+    h('span', { class: 'sync-dot sync-dot-inline', 'aria-hidden': 'true' }), syncText, syncNowBtn);
+
+  const timeLabel = (iso) => {
+    if (!iso) return '';
+    const mins = Math.round((Date.now() - Date.parse(iso)) / 60000);
+    return mins < 1 ? 'just now' : mins < 60 ? `${mins} min ago` : new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+  function paintSync(s) {
+    if (!s) return;
+    const label = {
+      idle: s.lastSyncedAt ? `Synced ${timeLabel(s.lastSyncedAt)}` : 'Synced',
+      syncing: 'Syncing…',
+      offline: `Offline${s.pending ? ` · ${s.pending} change${s.pending === 1 ? '' : 's'} saved on this device` : ''}`,
+      error: 'Sync problem · will retry',
+      disabled: 'Sync is off on this device',
+    }[s.state] || 'Sync';
+    const withPending = s.state === 'idle' && s.pending ? `${label} · ${s.pending} waiting` : label;
+    syncText.textContent = withPending;
+    for (const dot of [syncDot, syncRow.querySelector('.sync-dot')]) dot.dataset.state = s.state;
+    syncRow.dataset.state = s.state;
+    trigger.title = `${displayName} — ${email}\n${withPending}`;
+  }
+  const onSyncStatus = (e) => {
+    if (!syncRow.isConnected && !trigger.isConnected) { document.removeEventListener('baraha:sync-status', onSyncStatus); return; }
+    paintSync(e.detail);
+  };
+  document.addEventListener('baraha:sync-status', onSyncStatus);
+
   function closeMenu() {
     if (menuEl) { menuEl.remove(); menuEl = null; }
     menuOpen = false;
@@ -34,6 +70,8 @@ export function buildAccountMenu(user, onSignedOut) {
         h('span', { class: 'account-dropdown-name' }, displayName),
         h('span', { class: 'account-dropdown-email' }, email)
       ),
+      h('hr', { class: 'account-dropdown-divider' }),
+      syncRow,
       h('hr', { class: 'account-dropdown-divider' }),
       h('button', {
         class: 'account-dropdown-signout',
@@ -61,8 +99,9 @@ export function buildAccountMenu(user, onSignedOut) {
       menuOpen ? closeMenu() : openMenu();
     },
   },
-    h('span', { class: 'account-avatar' }, initials)
+    h('span', { class: 'account-avatar' }, initials, syncDot)
   );
+  paintSync(window.__barahaSyncStatus);
 
   return trigger;
 }

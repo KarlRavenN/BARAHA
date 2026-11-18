@@ -29,10 +29,14 @@ function createRawMemoryBackend() {
       try {
         for (const o of ops) {
           if (!data[o.store]) throw new Error(`No such store ${o.store}`);
-          if (o.op === 'put') data[o.store].set(o.value[ALL_STORES[o.store].keyPath], clone(o.value));
-          else if (o.op === 'delete') {
+          if (o.op === 'put') {
+            const key = o.value[ALL_STORES[o.store].keyPath];
+            const cur = data[o.store].get(key);
+            // conditional put: same rules as the IndexedDB backend (null = must not exist / unstamped)
+            if (o.ifModifiedAt === undefined || (cur?.modifiedAt ?? null) === o.ifModifiedAt) data[o.store].set(key, clone(o.value));
+          } else if (o.op === 'delete') {
             const cur = data[o.store].get(o.key);
-            if (o.ifModifiedAt === undefined || (cur && cur.modifiedAt === o.ifModifiedAt)) data[o.store].delete(o.key);
+            if (o.ifModifiedAt === undefined || (cur && (cur.modifiedAt ?? null) === o.ifModifiedAt)) data[o.store].delete(o.key);
           }
           else throw new Error(`Unknown op ${o.op}`);
         }

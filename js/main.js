@@ -1,6 +1,6 @@
 import { createIndexedDbBackend } from './core/db.js';
 import { setBackend, migrateRoundsAndDrafts } from './core/store.js';
-import { route, startRouter } from './core/router.js';
+import { route, startRouter, refresh } from './core/router.js';
 import { h } from './core/ui.js';
 import { dashboardView } from './modules/dashboard.js';
 import { workspaceView } from './modules/workspace.js';
@@ -12,6 +12,8 @@ import { settingsView } from './modules/settings.js';
 import { mountAuthFlow } from './modules/auth-screens.js';
 import { buildAccountMenu } from './components/account-menu.js';
 import { getUser, onAuthChange } from './core/auth.js';
+import { supabase } from './core/supabase.js';
+import { createSync } from './core/sync.js';
 
 const view = document.getElementById('view');
 const nav = document.getElementById('nav');
@@ -44,6 +46,9 @@ const NAV = [
 
 // Current signed-in user, kept in sync by onAuthChange
 let currentUser = null;
+let backend = null;
+let syncEngine = null;
+let pendingRefresh = false;
 // Which account's local database is open (see db.js dbNameFor). Never mix accounts in one session.
 let backendUserId = null;
 
@@ -145,7 +150,8 @@ async function startApp() {
   if (!('indexedDB' in window)) return fatal('This browser does not support IndexedDB, which BARAHA needs to save your work.');
   try {
     if (!currentUser?.id) return fatal('Please sign in to open BARAHA.');
-    setBackend(await createIndexedDbBackend(currentUser.id));
+    backend = await createIndexedDbBackend(currentUser.id);
+    setBackend(backend);
     backendUserId = currentUser.id;
     await migrateRoundsAndDrafts();
   } catch (e) {
@@ -203,6 +209,31 @@ async function startApp() {
   drawNav(location.hash.slice(1) || '/');
 
   await startRouter();
+  startSync();
+}
+
+// ---- Cloud sync (Stage 2) ----
+// Re-render after data arrived from another device, but never while you are typing or a dialog is open.
+function refreshWhenIdle() {
+  const typing = document.activeElement?.closest?.('[contenteditable="true"], input, textarea, select');
+  if (typing || document.querySelector('.scrim')) { pendingRefresh = true; return; }
+  pendingRefresh = false;
+  refresh();
+}
+document.addEventListener('focusout', () => {
+  if (pendingRefresh) setTimeout(() => { if (pendingRefresh) refreshWhenIdle(); }, 600);
+});
+
+function startSync() {
+  if (syncEngine || !backend || !currentUser?.id) return;
+  syncEngine = createSync({ backend, client: supabase, userId: currentUser.id });
+  syncEngine.onStatus((status) => {
+    window.__barahaSyncStatus = status; // read by the account menu
+    document.dispatchEvent(new CustomEvent('baraha:sync-status', { detail: status }));
+  });
+  syncEngine.onApplied(() => refreshWhenIdle());
+  window.addEventListener('baraha:sync-now', () => syncEngine.syncNow({ force: true }));
+  syncEngine.start().catch((e) => console.warn('[sync] could not start', e));
 }
 
 async function boot() {
