@@ -3438,3 +3438,61 @@ html, body {
   .focus-exit, .workspace-reopen-pill, .hl-popover, .mark-complete-toolbar-btn { transition: none !important; }
   .mark-complete-toolbar-btn.spray-animating { animation: none !important; }
 }
+
+
+/* =========================================================================
+   UI POLISH A: back button, typeable font size, exit-focus icon
+   ========================================================================= */
+.page-head-main { display: flex; align-items: center; gap: 10px; min-width: 0; flex-wrap: nowrap; }
+.page-head-main h1 { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+
+button.back-btn {
+  flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 48px; height: 48px; padding: 0; margin: 0;
+  background: transparent; border: none; border-radius: 50%; box-shadow: none;
+  line-height: 0; cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: filter 120ms ease, transform 120ms ease;
+}
+button.back-btn img { width: 44px; height: 44px; display: block; pointer-events: none; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.65)); }
+button.back-btn:hover { background: transparent; border-color: transparent; box-shadow: none; transform: none; filter: brightness(1.18); }
+button.back-btn:active { transform: scale(0.92); box-shadow: none; }
+button.back-btn:focus-visible { outline: 2px solid var(--white); outline-offset: 2px; }
+button.back-btn.is-sm { width: 32px; height: 32px; }
+button.back-btn.is-sm img { width: 28px; height: 28px; }
+.wall-logo-row button.back-btn { width: 40px; height: 40px; }
+.wall-logo-row button.back-btn img { width: 36px; height: 36px; }
+
+/* Font size field */
+.toolbar-size-control .size-input {
+  width: 34px; min-width: 0; padding: 2px 0; margin: 0; border: 1px solid transparent; border-radius: 4px;
+  background: transparent; color: inherit; font: inherit; text-align: center;
+  font-variant-numeric: tabular-nums; box-shadow: none; cursor: text;
+}
+.toolbar-size-control .size-input:hover { border-color: var(--line-strong); }
+.toolbar-size-control .size-input:focus { outline: none; border-color: #A60000; background: var(--surface); }
+.toolbar-size-control .size-reset-btn {
+  padding: 5px 7px; border: none; border-left: 1px solid var(--line); background: transparent;
+  color: var(--text-dim); line-height: 0; border-radius: 0 var(--radius) var(--radius) 0;
+}
+.toolbar-size-control .size-reset-btn:hover { color: var(--white); box-shadow: none; transform: none; }
+.toolbar-size-control .size-reset-btn[hidden] { display: none; }
+.toolbar-size-control .size-step-btn { touch-action: manipulation; user-select: none; -webkit-user-select: none; }
+
+/* Exit focus: dark chip with the spray-paint icon */
+.focus-exit.focus-exit-icon {
+  background: rgba(20, 18, 18, 0.86); border: 1px solid var(--line-strong); color: var(--white);
+  border-radius: 999px; padding: 3px 14px 3px 4px; box-shadow: 2px 2px 0 rgba(0, 0, 0, 0.6);
+}
+.focus-exit.focus-exit-icon:hover { background: rgba(32, 28, 28, 0.95); }
+.focus-exit.focus-exit-icon img { width: 30px; height: 30px; display: block; pointer-events: none; }
+.focus-exit.focus-exit-icon .focus-exit-label { font-weight: 600; letter-spacing: 0.02em; }
+
+@media (max-width: 768px) {
+  button.back-btn { width: 44px; height: 44px; }
+  button.back-btn img { width: 40px; height: 40px; }
+  button.back-btn.is-sm { width: 40px; height: 40px; }
+  button.back-btn.is-sm img { width: 30px; height: 30px; }
+  .toolbar-size-control .size-input { width: 30px; font-size: 14px; }
+  .focus-exit.focus-exit-icon { width: 40px; height: 40px; padding: 0; border-radius: 50%; justify-content: center; }
+  .focus-exit.focus-exit-icon img { width: 34px; height: 34px; }
+}

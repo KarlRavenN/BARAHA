@@ -1,4 +1,5 @@
 import { h, toast, confirmDialog, formDialog } from '../core/ui.js';
+import { backButton } from '../components/back-button.js';
 import { debounce } from '../core/util.js';
 import * as store from '../core/store.js';
 import { openContextMenu } from '../components/context-menu.js';
@@ -181,15 +182,15 @@ export async function draftsView(container, { battleId, roundId, roundNumber, ed
 
     let inFlightSave = null;
 
-    const backBtn = h('button', {
-      class: 'ghost small-btn inline-back-btn',
-      title: 'Back to Drafts list',
+    const backBtn = backButton({
+      size: 'sm',
+      label: 'Back to Drafts list',
       onclick: async () => {
         debouncedAutosave.cancel?.();
         await saveCurrentChanges();
         backToList();
       },
-    }, '← Drafts');
+    });
 
     const saveBadge = h('span', { class: 'save-state faint small' }, 'Saved');
 

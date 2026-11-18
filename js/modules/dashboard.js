@@ -1,4 +1,5 @@
 import { h, toast, confirmDialog } from '../core/ui.js';
+import { backButton } from '../components/back-button.js';
 import { go } from '../core/router.js';
 import { timeAgo, formatDate, getBattleCountdown } from '../core/util.js';
 import * as store from '../core/store.js';
@@ -655,6 +656,7 @@ export async function dashboardView(root) {
     h('div', { class: 'wall-header-section' },
       h('div', { class: 'wall-title-area' },
         h('div', { class: 'wall-logo-row' },
+          backButton({ onlyIfPrevious: true }),
           h('div', { class: 'brand-tag header-brand-tag' },
             h('b', {}, 'BAR', h('span', { class: 'brand-accent' }, 'A'), 'HA')
           ),

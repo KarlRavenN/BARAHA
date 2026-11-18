@@ -1,4 +1,5 @@
 import { h, toast, confirmDialog, formDialog } from '../core/ui.js';
+import { backButton } from '../components/back-button.js';
 import { formatDate } from '../core/util.js';
 import * as store from '../core/store.js';
 
@@ -242,7 +243,7 @@ export async function opponentsView(root) {
   root.replaceChildren(
     h('div', { class: 'page stack' },
       h('div', { class: 'page-head' },
-        h('h1', {}, 'Opponent Research'),
+        h('div', { class: 'page-head-main' }, backButton(), h('h1', {}, 'Opponent Research')),
         h('p', { class: 'muted small' }, 'Study your rivals, catalog their tendencies and weaknesses, and formulate attack angles.')),
       h('div', { class: 'opponents-layout' },
         sidebarEl,

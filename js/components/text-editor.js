@@ -67,30 +67,89 @@ export function mountTextEditor(container, {
 
   const stateBadge = h('span', { class: 'save-state faint' }, 'Loading…');
 
-  // Font size stepper (- 16 +), visible on desktop and phones
-  const SIZE_MIN = 13;
-  const SIZE_MAX = 24;
-  let currentSize = 16;
-  const sizeValue = h('span', { class: 'size-value', 'aria-live': 'polite' }, '16');
+  // Font size: [-] [typeable number] [+] [reset], 4 to 32. Visible on desktop and phones.
+  const SIZE_MIN = 4;
+  const SIZE_MAX = 32;
+  const SIZE_DEFAULT = 16;
+  let currentSize = SIZE_DEFAULT;
+
+  const sizeInput = h('input', {
+    type: 'text', inputmode: 'numeric', class: 'size-input', value: String(SIZE_DEFAULT), maxlength: '3',
+    autocomplete: 'off', spellcheck: 'false',
+    'aria-label': 'Font size (4 to 32)', title: 'Type a size from 4 to 32',
+    onfocus: (e) => e.target.select(),
+    oninput: (e) => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 3); },
+    onkeydown: (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); commitSizeInput(); e.target.blur(); }
+      else if (e.key === 'Escape') { // cancel; must not also leave focus mode
+        e.preventDefault(); e.stopPropagation();
+        e.target.value = String(currentSize); e.target.blur();
+      } else if (e.key === 'ArrowUp') { e.preventDefault(); setSize(currentSize + 1); }
+      else if (e.key === 'ArrowDown') { e.preventDefault(); setSize(currentSize - 1); }
+    },
+    onblur: () => commitSizeInput(),
+  });
+
+  /** Empty or non-numeric input reverts; numbers outside 4..32 snap to the nearest limit. */
+  function commitSizeInput() {
+    const raw = sizeInput.value.trim();
+    if (!/^\d{1,3}$/.test(raw)) { sizeInput.value = String(currentSize); return; }
+    setSize(parseInt(raw, 10));
+  }
+
+  // Press: change once now; keep holding: after ~400 ms repeat every ~80 ms. Keyboard use goes through click.
+  function bindSizeStep(btn, step) {
+    let delayTimer = null;
+    let repeatTimer = null;
+    const stop = () => { clearTimeout(delayTimer); clearInterval(repeatTimer); delayTimer = repeatTimer = null; };
+    btn.addEventListener('pointerdown', (e) => {
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      if (btn.disabled) return;
+      stop();
+      setSize(currentSize + step);
+      delayTimer = setTimeout(() => {
+        repeatTimer = setInterval(() => {
+          if (btn.disabled) return stop();
+          setSize(currentSize + step);
+        }, 80);
+      }, 400);
+    });
+    ['pointerup', 'pointerleave', 'pointercancel', 'blur'].forEach((t) => btn.addEventListener(t, stop));
+    btn.addEventListener('click', (e) => { if (e.detail === 0) setSize(currentSize + step); }); // keyboard activation
+    btn.addEventListener('contextmenu', (e) => e.preventDefault()); // no long-press menu while holding on phones
+    btn.addEventListener('mousedown', (e) => e.preventDefault()); // never steal the text selection from the editor
+  }
+
   const sizeDownBtn = h('button', {
     type: 'button', class: 'ghost size-step-btn', title: 'Smaller text', 'aria-label': 'Decrease font size',
-    onmousedown: (e) => e.preventDefault(),
-    onclick: () => setSize(currentSize - 1),
   }, iconEl('minus', 14));
   const sizeUpBtn = h('button', {
     type: 'button', class: 'ghost size-step-btn', title: 'Larger text', 'aria-label': 'Increase font size',
-    onmousedown: (e) => e.preventDefault(),
-    onclick: () => setSize(currentSize + 1),
   }, iconEl('plus', 14));
+  bindSizeStep(sizeDownBtn, -1);
+  bindSizeStep(sizeUpBtn, 1);
+  const sizeResetBtn = h('button', {
+    type: 'button', class: 'ghost size-reset-btn', hidden: true,
+    title: `Reset to ${SIZE_DEFAULT}`, 'aria-label': `Reset font size to ${SIZE_DEFAULT}`,
+    onmousedown: (e) => e.preventDefault(),
+    onclick: () => setSize(SIZE_DEFAULT),
+  }, iconEl('reset', 14));
   const sizeControl = h('div', { class: 'toolbar-size-control', role: 'group', 'aria-label': 'Font size' },
-    sizeDownBtn, sizeValue, sizeUpBtn);
+    sizeDownBtn, sizeInput, sizeUpBtn, sizeResetBtn);
+
+  // Exit focus: the spray-paint back icon (icon + "Exit focus" on desktop, icon only on phones). Leaves focus mode only.
   const exitFocus = h('button', {
     type: 'button',
-    class: 'primary focus-exit',
+    class: 'focus-exit focus-exit-icon',
     title: 'Exit focus mode (Esc)',
     'aria-label': 'Exit focus mode',
     onclick: () => toggleFocus(false),
-  }, iconEl('collapse', 18), h('span', { class: 'focus-exit-label' }, 'Exit focus (Esc)'));
+  },
+  h('img', {
+    src: 'assets/icons/back-48.png', srcset: 'assets/icons/back-96.png 2x',
+    alt: '', width: '30', height: '30', draggable: 'false',
+  }),
+  h('span', { class: 'focus-exit-label' }, 'Exit focus'));
 
   // Active round detection and "Mark Round Completed" button with spray animation
   const roundNum = roundNumber || (label.match(/round\s*(\d+)/i)?.[1]) || 1;
@@ -445,13 +504,17 @@ export function mountTextEditor(container, {
     area.style.width = '100%';
   };
   function setSize(value, persist = true) {
-    const n = Math.max(SIZE_MIN, Math.min(SIZE_MAX, Math.round(Number(value)) || 16));
+    const num = Math.round(Number(value));
+    if (value === '' || value == null || !Number.isFinite(num)) { sizeInput.value = String(currentSize); return; }
+    const n = Math.max(SIZE_MIN, Math.min(SIZE_MAX, num));
+    const changed = n !== currentSize;
     currentSize = n;
-    sizeValue.textContent = String(n);
+    sizeInput.value = String(n);
     sizeDownBtn.disabled = n <= SIZE_MIN;
     sizeUpBtn.disabled = n >= SIZE_MAX;
+    sizeResetBtn.hidden = n === SIZE_DEFAULT;
     applyPrefs(n);
-    if (persist) setSetting('editorSize', n).catch(() => {});
+    if (persist && changed) setSetting('editorSize', n).catch(() => {});
   }
 
   const appEl = () => document.getElementById('app');
