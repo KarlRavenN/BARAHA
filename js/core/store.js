@@ -1043,6 +1043,49 @@ export async function getAudioBlob(voiceNoteId) {
   return list[0] || null;
 }
 
+// ---- Audio recorded on another device (Stage 3) ----
+// Pulling a voice note from the cloud creates a placeholder (blob: null, remote: true, path).
+// The audio file is downloaded only when it is needed, then kept on this device.
+let audioFetcher = null;
+export const setAudioFetcher = (fn) => { audioFetcher = fn; };
+
+const audioInFlight = new Map();
+const audioWaiting = [];
+let audioActive = 0;
+const AUDIO_PARALLEL = 3;
+function audioSlot() {
+  return new Promise((resolve) => {
+    const go = () => { audioActive += 1; resolve(() => { audioActive -= 1; const next = audioWaiting.shift(); if (next) next(); }); };
+    if (audioActive < AUDIO_PARALLEL) go(); else audioWaiting.push(go);
+  });
+}
+
+/** Returns the audio record WITH its blob, downloading it from the cloud first if needed. */
+export function fetchAudio(voiceNoteId) {
+  if (audioInFlight.has(voiceNoteId)) return audioInFlight.get(voiceNoteId);
+  const job = (async () => {
+    const rec = await getAudioBlob(voiceNoteId);
+    if (!rec || rec.blob) return rec;
+    if (!audioFetcher || !rec.path) throw new Error('This recording is not downloaded yet. Connect to the internet and try again.');
+    const release = await audioSlot();
+    try {
+      const blob = await audioFetcher(rec);
+      if (!blob) throw new Error('Audio download failed');
+      const full = { ...rec, blob, remote: false };
+      // Keep the same stamp and do NOT queue it for upload again: it already exists in the cloud.
+      if (be().sync?.applyRemote) {
+        await be().sync.applyRemote([{ op: 'put', store: 'audioBlobs', value: full, expectLocal: rec.modifiedAt ?? null, expectQueue: null }]);
+      } else {
+        await be().batch([{ op: 'put', store: 'audioBlobs', value: full }]);
+      }
+      return full;
+    } finally { release(); }
+  })();
+  audioInFlight.set(voiceNoteId, job);
+  job.then(() => audioInFlight.delete(voiceNoteId), () => audioInFlight.delete(voiceNoteId));
+  return job;
+}
+
 export async function deleteVoiceNote(id) {
   const ops = [{ op: 'delete', store: 'voiceNotes', key: id }];
   const blobs = await be().getAllByIndex('audioBlobs', 'voiceNoteId', id);
@@ -1602,7 +1645,9 @@ export async function exportZipBackup() {
   ];
 
   const audioBlobs = await be().getAll('audioBlobs');
-  for (const ab of audioBlobs) {
+  for (let ab of audioBlobs) {
+    // recordings that only exist in the cloud are downloaded first so the backup is complete
+    if (!ab.blob && ab.remote) { try { ab = (await fetchAudio(ab.voiceNoteId)) || ab; } catch { /* offline: skipped */ } }
     if (ab.blob) {
       const ext = ab.mimeType.includes('wav') ? 'wav' : (ab.mimeType.includes('mp3') ? 'mp3' : 'webm');
       files.push({

@@ -15,7 +15,8 @@
 export const SYNC_EXCLUDED = new Set([
   'syncQueue', // the queue itself
   'syncMeta',  // per-device bookkeeping
-  'audioBlobs', // Stage 3 (goes to Supabase Storage, not the JSON table)
+  // audioBlobs ARE tracked since Stage 3: sync.js uploads the file to Supabase Storage and only
+  // the small metadata record goes to the table (the Blob itself never goes into JSON).
   'settings',  // mixes per-device prefs and local migration flags; opt-in allowlist later
 ]);
 

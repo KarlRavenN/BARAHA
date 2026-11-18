@@ -1,5 +1,5 @@
 import { createIndexedDbBackend } from './core/db.js';
-import { setBackend, migrateRoundsAndDrafts } from './core/store.js';
+import { setBackend, migrateRoundsAndDrafts, setAudioFetcher } from './core/store.js';
 import { route, startRouter, refresh } from './core/router.js';
 import { h } from './core/ui.js';
 import { dashboardView } from './modules/dashboard.js';
@@ -227,6 +227,7 @@ document.addEventListener('focusout', () => {
 function startSync() {
   if (syncEngine || !backend || !currentUser?.id) return;
   syncEngine = createSync({ backend, client: supabase, userId: currentUser.id });
+  setAudioFetcher((rec) => syncEngine.downloadAudio(rec)); // voice notes recorded on another device
   syncEngine.onStatus((status) => {
     window.__barahaSyncStatus = status; // read by the account menu
     document.dispatchEvent(new CustomEvent('baraha:sync-status', { detail: status }));

@@ -3,6 +3,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createMemoryBackend } from './memory-backend.js';
 import { createSync } from '../js/core/sync.js';
+import { setBackend, setAudioFetcher, fetchAudio, exportZipBackup } from '../js/core/store.js';
+import { readZip } from '../js/core/zip.js';
 
 const ms = (v) => Date.parse(v);
 const put = (store, value) => ({ op: 'put', store, value });
@@ -12,7 +14,8 @@ const del = (store, key) => ({ op: 'delete', store, key });
 function createFakeServer() {
   const rows = new Map(); // `${user}|${store}|${id}` -> row
   let tick = Date.parse('2030-01-01T00:00:00Z');
-  const fail = { rpc: null, select: null };
+  const fail = { rpc: null, select: null, upload: null };
+  const objects = new Map(); // fake Storage: 'bucket/path' -> { blob, opts }
   const calls = { rpc: 0, select: 0 };
   const fmt = (t) => new Date(t).toISOString().replace('Z', '+00:00'); // like Postgres
   function clientFor(userId) {
@@ -28,6 +31,22 @@ function createFakeServer() {
           rows.set(key, { user_id: userId, store: r.store, id: r.id, data: r.data, updated_at: fmt(ms(r.updated_at)), deleted: !!r.deleted, device_id: r.device_id, server_updated_at: fmt(tick++) });
         }
         return { error: null };
+      },
+      storage: {
+        from(bucket) {
+          return {
+            async upload(path, blob, opts) {
+              if (fail.upload) return { data: null, error: { message: fail.upload } };
+              objects.set(`${bucket}/${path}`, { blob, opts });
+              return { data: { path }, error: null };
+            },
+            async download(path) {
+              const o = objects.get(`${bucket}/${path}`);
+              return o ? { data: o.blob, error: null } : { data: null, error: { message: 'Object not found' } };
+            },
+            async remove(paths) { for (const p of paths) objects.delete(`${bucket}/${p}`); return { data: [], error: null }; },
+          };
+        },
       },
       from() {
         const f = { filters: [], orders: [], range: null };
@@ -50,7 +69,7 @@ function createFakeServer() {
       },
     };
   }
-  return { clientFor, rows, fail, calls };
+  return { clientFor, rows, fail, calls, objects };
 }
 
 async function device(server, { user = 'u1', clock = Date.parse('2030-06-01T10:00:00Z'), name = 'dev' } = {}) {
@@ -181,14 +200,14 @@ test('a broken clock far in the future does not poison the other devices', async
   assert.ok(ms(stamp) < Date.parse('2031-01-01'), 'our stamps must not jump 10 years ahead');
 });
 
-test('stores that stay local in Stage 2 are not uploaded and do not count as pending', async () => {
+test('stores that stay local (line-checker data) are not uploaded and do not count as pending', async () => {
   const s = createFakeServer();
   const A = await device(s, { name: 'A' });
-  await A.backend.batch([put('voiceNotes', { id: 'v1', battleId: 'b1' }), put('referenceLines', { id: 'l1', text: 'x' }), put('battles', { id: 'b1', title: 'ok' })]);
+  await A.backend.batch([put('referenceLines', { id: 'l1', text: 'x' }), put('scans', { id: 's1' }), put('battles', { id: 'b1', title: 'ok' })]);
   await A.sync.syncNow({ force: true });
   assert.deepEqual([...s.rows.values()].map((r) => r.store), ['battles']);
   assert.equal(A.sync.getStatus().pending, 0);
-  assert.equal(await A.backend.sync.pendingCount(), 2, 'they stay queued for Stage 3');
+  assert.equal(await A.backend.sync.pendingCount(), 2, 'they stay queued, local only');
 });
 
 test('offline: nothing is lost, status says offline, and it catches up when back online', async () => {
@@ -303,4 +322,128 @@ test('syncing again with nothing new changes nothing (no ping-pong)', async () =
   for (let i = 0; i < 3; i++) { await A.sync.syncNow({ force: true }); await B.sync.syncNow({ force: true }); }
   assert.equal(JSON.stringify([...s.rows.values()].map((r) => [r.id, r.server_updated_at])), snap, 'server rows untouched');
   assert.equal(await A.backend.sync.pendingCount() + await B.backend.sync.pendingCount(), 0);
+});
+
+// ---------------- Stage 3: voice notes + audio ----------------
+const audioBlob = (text = 'fake-audio-bytes') => new Blob([text], { type: 'audio/webm' });
+const putVoice = (id, audioId, text) => [
+  put('voiceNotes', { id, title: `Take ${id}`, durationMs: 4000, recordedAt: '2030-06-01T10:00:00.000Z', battleId: 'b1', tags: [] }),
+  put('audioBlobs', { id: audioId, voiceNoteId: id, mimeType: 'audio/webm', blob: audioBlob(text) }),
+];
+
+test('a voice note recorded on A: the file goes to Storage, B gets a placeholder (no Blob in the table)', async () => {
+  const s = createFakeServer();
+  const A = await device(s, { name: 'A' });
+  const B = await device(s, { name: 'B' });
+  await A.backend.batch(putVoice('v1', 'a1'));
+  await A.sync.syncNow({ force: true }); await B.sync.syncNow({ force: true });
+  assert.ok(s.objects.has('audio/u1/a1'), 'file uploaded to <userId>/<audioId>');
+  assert.equal(s.objects.get('audio/u1/a1').opts.contentType, 'audio/webm');
+  const row = [...s.rows.values()].find((r) => r.store === 'audioBlobs');
+  assert.equal(row.data.blob, undefined, 'the Blob never goes into the JSON table');
+  assert.equal(row.data.path, 'u1/a1');
+  assert.equal(row.data.size, 'fake-audio-bytes'.length);
+  assert.equal((await B.backend.get('voiceNotes', 'v1')).title, 'Take v1');
+  const ph = await B.backend.get('audioBlobs', 'a1');
+  assert.equal(ph.blob, null); assert.equal(ph.remote, true); assert.equal(ph.path, 'u1/a1');
+  assert.equal(await B.backend.sync.pendingCount(), 0, 'a placeholder is not uploaded back');
+  assert.equal(await A.backend.sync.pendingCount(), 0);
+});
+
+test('the audio is downloaded when played, kept on the device, and not uploaded again', async () => {
+  const s = createFakeServer();
+  const A = await device(s, { name: 'A' });
+  const B = await device(s, { name: 'B' });
+  await A.backend.batch(putVoice('v1', 'a1', 'hello flow'));
+  await A.sync.syncNow({ force: true }); await B.sync.syncNow({ force: true });
+  setBackend(B.backend); setAudioFetcher(B.sync.downloadAudio);
+  const rec = await fetchAudio('v1');
+  assert.equal(await rec.blob.text(), 'hello flow');
+  const kept = await B.backend.get('audioBlobs', 'a1');
+  assert.equal(kept.remote, false); assert.ok(kept.blob);
+  assert.equal(await B.backend.sync.pendingCount(), 0, 'downloaded audio is not queued for upload');
+  let calls = 0; setAudioFetcher(async () => { calls++; return null; });
+  assert.equal((await fetchAudio('v1')).blob.size, 'hello flow'.length);
+  assert.equal(calls, 0, 'second play uses the local copy');
+  await B.sync.syncNow({ force: true }); await A.sync.syncNow({ force: true });
+  assert.equal(s.objects.size, 1);
+});
+
+test('without internet a cloud-only recording gives a clear message and stays a placeholder', async () => {
+  const s = createFakeServer();
+  const A = await device(s, { name: 'A' });
+  const B = await device(s, { name: 'B' });
+  await A.backend.batch(putVoice('v1', 'a1'));
+  await A.sync.syncNow({ force: true }); await B.sync.syncNow({ force: true });
+  setBackend(B.backend);
+  setAudioFetcher(async () => { throw new Error('Failed to fetch'); });
+  await assert.rejects(() => fetchAudio('v1'), /Failed to fetch/);
+  setAudioFetcher(null);
+  await assert.rejects(() => fetchAudio('v1'), /not downloaded yet/);
+  assert.equal((await B.backend.get('audioBlobs', 'a1')).blob, null);
+});
+
+test('deleting a voice note removes the file from Storage and the note on the other device', async () => {
+  const s = createFakeServer();
+  const A = await device(s, { name: 'A' });
+  const B = await device(s, { name: 'B' });
+  await A.backend.batch(putVoice('v1', 'a1'));
+  await A.sync.syncNow({ force: true }); await B.sync.syncNow({ force: true });
+  A.advance(5000);
+  await A.backend.batch([del('voiceNotes', 'v1'), del('audioBlobs', 'a1')]);
+  await A.sync.syncNow({ force: true }); await B.sync.syncNow({ force: true });
+  assert.equal(s.objects.size, 0, 'no orphan audio left in the cloud');
+  assert.equal(await B.backend.get('voiceNotes', 'v1'), undefined);
+  assert.equal(await B.backend.get('audioBlobs', 'a1'), undefined);
+});
+
+test('a failed upload keeps everything queued, never blocks the text, and recovers', async () => {
+  const s = createFakeServer();
+  const A = await device(s, { name: 'A' });
+  s.fail.upload = 'The object exceeded the maximum allowed size';
+  await A.backend.batch([put('battles', { id: 'b1', title: 'text goes first' }), ...putVoice('v1', 'a1')]);
+  await A.sync.syncNow({ force: true });
+  assert.equal(A.sync.getStatus().state, 'error');
+  assert.match(A.sync.getStatus().error, /storage may be full|too big/);
+  assert.equal([...s.rows.values()].filter((r) => r.store === 'battles').length, 1, 'the text still got through');
+  assert.ok(await A.backend.get('audioBlobs', 'a1'), 'recording still on the device');
+  s.fail.upload = null;
+  await A.sync.syncNow({ force: true });
+  assert.equal(A.sync.getStatus().state, 'idle');
+  assert.ok(s.objects.has('audio/u1/a1'));
+  assert.equal(await A.backend.sync.pendingCount(), 0);
+});
+
+test('recordings made BEFORE Stage 3 (unstamped, earlier stores already backfilled) are uploaded once', async () => {
+  const s = createFakeServer();
+  const t = { ms: Date.parse('2030-06-01T10:00:00Z') };
+  const backend = createMemoryBackend({ now: () => t.ms });
+  await backend.sync.setMeta('deviceId', 'A');
+  await backend.sync.setMeta('backfilled', true); // what a Stage 2 device has stored
+  // legacy records written without stamps (bypassing tracking)
+  await backend.sync.applyRemote([
+    { op: 'put', store: 'voiceNotes', value: { id: 'old', title: 'old take', recordedAt: 'x', tags: [] } },
+    { op: 'put', store: 'audioBlobs', value: { id: 'oldA', voiceNoteId: 'old', mimeType: 'audio/webm', blob: audioBlob('old audio') } },
+  ]);
+  const sync = createSync({ backend, client: s.clientFor('u1'), userId: 'u1', now: () => t.ms, pollMs: 1e9, debounceMs: 1e9 });
+  await sync.start();
+  assert.ok(s.objects.has('audio/u1/oldA'));
+  assert.deepEqual([...s.rows.values()].map((r) => r.store).sort(), ['audioBlobs', 'voiceNotes']);
+  assert.deepEqual(await backend.sync.getMeta('backfilledStores'), [
+    'battles', 'rounds', 'finalMaterials', 'drafts', 'schemes', 'schemeDrafts', 'rhymes', 'opponents', 'opponentNotes', 'pronunciations', 'pinnedBars', 'voiceNotes', 'audioBlobs']);
+});
+
+test('a backup taken on a device includes audio that was still only in the cloud', async () => {
+  const s = createFakeServer();
+  const A = await device(s, { name: 'A' });
+  const B = await device(s, { name: 'B' });
+  await A.backend.batch(putVoice('v1', 'a1', 'backup me'));
+  await A.sync.syncNow({ force: true }); await B.sync.syncNow({ force: true });
+  assert.equal((await B.backend.get('audioBlobs', 'a1')).blob, null, 'B only has a placeholder');
+  setBackend(B.backend); setAudioFetcher(B.sync.downloadAudio);
+  const zip = await exportZipBackup();
+  const files = await readZip(zip);
+  const audio = files.find((f) => f.name.startsWith('audio/v1.'));
+  assert.ok(audio, 'the ZIP contains the recording');
+  assert.equal(new TextDecoder().decode(audio.data), 'backup me');
 });

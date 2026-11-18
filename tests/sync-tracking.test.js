@@ -64,12 +64,12 @@ test('finalMaterials are keyed by roundId in the queue', async () => {
   assert.ok((await queueOf(b))[queueId('finalMaterials', 'r9')]);
 });
 
-test('settings, audioBlobs and the sync stores are never stamped or queued', async () => {
+test('settings and the sync stores are never stamped or queued (audio is tracked since Stage 3)', async () => {
   const b = createMemoryBackend();
-  await b.batch([put('settings', { key: 'x', value: 1 }), put('audioBlobs', { id: 'a1', voiceNoteId: 'v' })]);
+  await b.batch([put('settings', { key: 'x', value: 1 })]);
   assert.equal((await b.get('settings', 'x')).modifiedAt, undefined);
   assert.equal(await b.sync.pendingCount(), 0);
-  assert.ok(!isSyncable('settings') && !isSyncable('audioBlobs') && !isSyncable('syncQueue') && isSyncable('battles'));
+  assert.ok(!isSyncable('settings') && !isSyncable('syncQueue') && isSyncable('battles') && isSyncable('audioBlobs'));
 });
 
 test('a failing batch applies nothing: neither the data nor its queue entry', async () => {
