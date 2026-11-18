@@ -1,4 +1,5 @@
 import { h, toast, confirmDialog, formDialog, download } from '../core/ui.js';
+import { backButton } from '../components/back-button.js';
 import { debounce } from '../core/util.js';
 import * as store from '../core/store.js';
 import { openContextMenu } from '../components/context-menu.js';
@@ -195,15 +196,15 @@ export async function schemesView(container, { battleId, roundId, editor = null 
 
     let inFlightSave = null;
 
-    const backBtn = h('button', {
-      class: 'ghost small-btn inline-back-btn',
-      title: 'Back to Schemes list',
+    const backBtn = backButton({
+      size: 'sm',
+      label: 'Back to Schemes list',
       onclick: async () => {
         debouncedAutosave.cancel?.();
         await saveCurrentChanges();
         backToList();
       },
-    }, '← Schemes');
+    });
 
     const saveBadge = h('span', { class: 'save-state faint small' }, 'Saved');
 

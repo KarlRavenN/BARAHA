@@ -1,4 +1,5 @@
 import { h, toast, download, confirmDialog, formDialog } from '../core/ui.js';
+import { backButton } from '../components/back-button.js';
 import { go } from '../core/router.js';
 import * as store from '../core/store.js';
 import { mountTextEditor } from '../components/text-editor.js';
@@ -404,7 +405,7 @@ export async function workspaceView(root, { id, round, section = 'rhymes' }) {
       h('span', {}, activeRound.name)),
     h('div', { class: 'page-head workspace-head' },
       h('div', {},
-        h('h1', { class: 'workspace-title' }, battle.title),
+        h('div', { class: 'page-head-main' }, backButton(), h('h1', { class: 'workspace-title' }, battle.title)),
         h('span', { class: 'muted' }, [battle.opponentName && `vs ${battle.opponentName}`, battle.league].filter(Boolean).join(' · ') || 'Battle Workspace')),
       h('div', { class: 'row', style: 'gap: 8px;' },
         focusBtn,

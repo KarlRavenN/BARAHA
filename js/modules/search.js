@@ -1,4 +1,5 @@
 import { h } from '../core/ui.js';
+import { backButton } from '../components/back-button.js';
 import * as store from '../core/store.js';
 
 export async function searchView(root) {
@@ -100,7 +101,7 @@ export async function searchView(root) {
     h('div', { class: 'page stack quick-open-container' },
       h('div', { class: 'page-head', style: 'justify-content: center; text-align: center; border-bottom: none; padding-bottom: 0;' },
         h('div', {},
-          h('h1', { style: 'font-size: 32px;' }, 'Global Search'),
+          h('div', { class: 'page-head-main', style: 'justify-content: center;' }, backButton(), h('h1', { style: 'font-size: 32px;' }, 'Global Search')),
           h('p', { class: 'muted small' }, 'Fast Quick Open across all battles, rhymes, drafts, schemes, and dossiers.')
         )
       ),

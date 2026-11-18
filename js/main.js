@@ -1,6 +1,7 @@
 import { createIndexedDbBackend } from './core/db.js';
 import { setBackend, migrateRoundsAndDrafts, setAudioFetcher } from './core/store.js';
 import { route, startRouter, refresh } from './core/router.js';
+import { initNavHistory } from './core/nav-history.js';
 import { h } from './core/ui.js';
 import { dashboardView } from './modules/dashboard.js';
 import { workspaceView } from './modules/workspace.js';
@@ -208,6 +209,7 @@ async function startApp() {
   // Draw the nav now that we know the user
   drawNav(location.hash.slice(1) || '/');
 
+  initNavHistory();
   await startRouter();
   startSync();
 }

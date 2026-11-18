@@ -12,6 +12,7 @@ const PATHS = {
   plus: '<path d="M12 6v12"/><path d="M6 12h12"/>',
   none: '<circle cx="12" cy="12" r="7.5"/><path d="M6.7 17.3l10.6-10.6"/>',
   check: '<path d="M5.5 12.5l4.2 4.2 8.8-9.4"/>',
+  reset: '<path d="M4.5 12a7.5 7.5 0 102.4-5.5"/><path d="M4.5 4.5v4h4"/>',
   expand: '<path d="M4 9V4h5"/><path d="M20 9V4h-5"/><path d="M4 15v5h5"/><path d="M20 15v5h-5"/>',
   collapse: '<path d="M9 4v5H4"/><path d="M15 4v5h5"/><path d="M9 20v-5H4"/><path d="M15 20v-5h5"/>',
 };

@@ -1,4 +1,5 @@
 import { h, toast, confirmDialog, formDialog, download } from '../core/ui.js';
+import { backButton } from '../components/back-button.js';
 import { formatDate } from '../core/util.js';
 import * as store from '../core/store.js';
 import { renderAudio, blobFor } from '../components/audio-player.js';
@@ -282,6 +283,8 @@ export async function voiceNotesView(container, { battleId = null, roundId = nul
 
   container.replaceChildren(
     h('div', { class: 'voice-module stack' },
+      isGlobalInbox && h('div', { class: 'page-head' },
+        h('div', { class: 'page-head-main' }, backButton(), h('h1', {}, 'Voice Inbox'))),
       recorderPanel,
       listEl)
   );

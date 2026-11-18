@@ -1,4 +1,5 @@
 import { h, toast, confirmDialog, download } from '../core/ui.js';
+import { backButton } from '../components/back-button.js';
 import * as store from '../core/store.js';
 import { SCHEMA_VERSION } from '../core/db.js';
 
@@ -81,7 +82,7 @@ export async function settingsView(root) {
   root.replaceChildren(h('div', { class: 'page stack' },
     h('div', { class: 'page-head' },
       h('div', {},
-        h('h1', {}, 'Settings'),
+        h('div', { class: 'page-head-main' }, backButton(), h('h1', {}, 'Settings')),
         h('p', { class: 'small muted' }, 'Configure workspace appearance, shortcuts, offline storage, and data backup.')
       )
     ),

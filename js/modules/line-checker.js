@@ -1,4 +1,5 @@
 import { h, toast, confirmDialog, formDialog } from '../core/ui.js';
+import { backButton } from '../components/back-button.js';
 import { formatDate } from '../core/util.js';
 import * as store from '../core/store.js';
 
@@ -247,7 +248,7 @@ export async function lineCheckerView(root, { initialScanText = '' } = {}) {
   root.replaceChildren(
     h('div', { class: 'page stack' },
       h('div', { class: 'page-head' },
-        h('h1', {}, 'Line Checker'),
+        h('div', { class: 'page-head-main' }, backButton(), h('h1', {}, 'Line Checker')),
         h('p', { class: 'muted small' }, 'Screen your bars against authorized reference records to catch unintended similarity or biting.')),
       h('div', { class: 'row', style: 'gap: 8px;' },
         tabScannerBtn, tabDbBtn, tabHistBtn),
