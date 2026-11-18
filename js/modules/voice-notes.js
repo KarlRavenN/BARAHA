@@ -1,6 +1,7 @@
 import { h, toast, confirmDialog, formDialog, download } from '../core/ui.js';
 import { formatDate } from '../core/util.js';
 import * as store from '../core/store.js';
+import { renderAudio, blobFor } from '../components/audio-player.js';
 
 export async function voiceNotesView(container, { battleId = null, roundId = null, isGlobalInbox = false } = {}) {
   let notes = await store.getVoiceNotes({ battleId, roundId, unassignedOnly: isGlobalInbox });
@@ -181,17 +182,8 @@ export async function voiceNotesView(container, { battleId = null, roundId = nul
 
   async function renderVoiceCard(vn) {
     const audioRec = await store.getAudioBlob(vn.id);
-    let audioEl = null;
-
-    if (audioRec && audioRec.blob) {
-      const url = URL.createObjectURL(audioRec.blob);
-      audioEl = h('audio', {
-        controls: true,
-        src: url,
-        preload: 'metadata',
-        style: 'width: 100%; margin-top: 8px;',
-      });
-    }
+    // Plays at once if recorded here; shows "Downloading audio…" first if it came from another device
+    const audioEl = renderAudio(audioRec, vn.id, { style: 'width: 100%; margin-top: 8px;' });
 
     const durationSec = Math.round((vn.durationMs || 0) / 1000);
     const durStr = durationSec > 0 ? `${Math.floor(durationSec / 60)}:${String(durationSec % 60).padStart(2, '0')}` : '0:00';
@@ -230,12 +222,15 @@ export async function voiceNotesView(container, { battleId = null, roundId = nul
               }
             },
           }, 'Rename'),
-          audioRec && audioRec.blob ? h('button', {
+          audioRec ? h('button', {
             class: 'ghost small-btn',
             title: 'Download audio file',
-            onclick: () => {
-              const ext = audioRec.mimeType.includes('wav') ? 'wav' : 'webm';
-              download(`${vn.title}.${ext}`, audioRec.blob);
+            onclick: async () => {
+              try {
+                const rec = await blobFor(audioRec, vn.id);
+                const ext = (rec.mimeType || '').includes('wav') ? 'wav' : 'webm';
+                download(`${vn.title}.${ext}`, rec.blob);
+              } catch (e) { toast(e.message || 'Audio is not available yet', 'error'); }
             },
           }, 'Download') : null,
           h('button', {

@@ -14,17 +14,24 @@
 //   * Pulled data is not re-queued (no echo loops).
 //   * Nothing here can break saving: all errors are caught, the app keeps working offline.
 //
-// Stage 3 adds voiceNotes + audio; Stage 4 adds Realtime. Until then those stores stay local.
+// Stage 3 (this file) also syncs voice notes: the note's details go to the table like any record,
+// the AUDIO FILE goes to a private Supabase Storage bucket ("audio", path <userId>/<audioId>).
+// Audio is immutable (recorded once), so it never conflicts. Other devices receive a placeholder
+// and download the file only when it is played (store.fetchAudio). Stage 4 adds Realtime.
 
 import { uid } from './util.js';
 import { KEY_PATHS } from './db.js';
 
-/** Stores synced in Stage 2. voiceNotes (audio) arrive in Stage 3; the line-checker corpus
- *  (referenceLines, scans, scanMatches) stays local for now. */
-export const SYNCED_STORES = [
+/** The stores Stage 2 synced. Kept so devices that already ran the one-time upload of old records
+ *  for these stores only do it for the stores added later. */
+const STAGE2_STORES = [
   'battles', 'rounds', 'finalMaterials', 'drafts', 'schemes', 'schemeDrafts',
   'rhymes', 'opponents', 'opponentNotes', 'pronunciations', 'pinnedBars',
 ];
+/** Synced stores. The line-checker corpus (referenceLines, scans, scanMatches) stays local. */
+export const SYNCED_STORES = [...STAGE2_STORES, 'voiceNotes', 'audioBlobs'];
+
+const AUDIO_BUCKET = 'audio';
 
 const ms = (v) => Date.parse(v);
 const isoOf = (v) => new Date(Date.parse(v)).toISOString();
@@ -73,26 +80,72 @@ export function createSync({
       const pending = (await backend.sync.getPending(5000)).filter((e) => storeSet.has(e.store));
       if (!pending.length) return;
 
+      // Text first, audio files last: a slow upload must not hold back your writing.
+      pending.sort((a, b) => (a.store === 'audioBlobs') - (b.store === 'audioBlobs') || ms(a.modifiedAt) - ms(b.modifiedAt));
       const entries = [];
       const records = [];
       let chars = 0;
       for (const e of pending) {
         if (entries.length >= pushBatch) break;
-        let rec = null;
-        if (!e.deleted) rec = await backend.get(e.store, e.id);
-        const row = rec
-          ? { store: e.store, id: e.id, data: rec, updated_at: rec.modifiedAt || e.modifiedAt, deleted: false, device_id: deviceId }
-          : { store: e.store, id: e.id, data: null, updated_at: e.modifiedAt, deleted: true, device_id: deviceId };
+        const isAudio = e.store === 'audioBlobs';
+        if (isAudio && entries.length) break; // send the text first; each audio file goes in a request of its own
+        let row;
+        if (e.store === 'audioBlobs') {
+          row = await audioRow(e, deviceId);
+        } else {
+          let rec = null;
+          if (!e.deleted) rec = await backend.get(e.store, e.id);
+          row = rec
+            ? { store: e.store, id: e.id, data: rec, updated_at: rec.modifiedAt || e.modifiedAt, deleted: false, device_id: deviceId }
+            : { store: e.store, id: e.id, data: null, updated_at: e.modifiedAt, deleted: true, device_id: deviceId };
+        }
         const size = JSON.stringify(row).length;
         if (entries.length && chars + size > MAX_PUSH_CHARS) break;
         chars += size;
         entries.push(e);
         records.push(row);
+        if (isAudio) break;
       }
       const { error } = await client.rpc('sync_push', { records });
       if (error) throw new Error(error.message || 'Could not upload changes');
       await backend.sync.ack(entries);
     }
+  }
+
+  // ---------- audio (Supabase Storage) ----------
+  const audioPath = (id) => `${userId}/${id}`;
+  const friendly = (e, fallback) => {
+    const m = e?.message || fallback;
+    return /size|quota|limit|exceed/i.test(m) ? `${m} (cloud audio storage may be full or the recording too big)` : m;
+  };
+
+  /** Uploads the audio file (or removes it when the note was deleted) and returns the table row. */
+  async function audioRow(e, deviceId) {
+    const bucket = client.storage.from(AUDIO_BUCKET);
+    const path = audioPath(e.id);
+    const rec = e.deleted ? null : await backend.get('audioBlobs', e.id);
+    if (!rec) {
+      const { error } = await bucket.remove([path]);
+      if (error) throw new Error(friendly(error, 'Could not remove audio'));
+      return { store: 'audioBlobs', id: e.id, data: null, updated_at: e.modifiedAt, deleted: true, device_id: deviceId };
+    }
+    if (rec.blob) {
+      const { error } = await bucket.upload(path, rec.blob, { contentType: rec.mimeType || 'audio/webm', upsert: true });
+      if (error) throw new Error(friendly(error, 'Could not upload audio'));
+    }
+    const { blob, remote, ...meta } = rec; // the Blob itself never goes into JSON
+    return {
+      store: 'audioBlobs', id: e.id,
+      data: { ...meta, path, size: blob ? blob.size : (meta.size ?? null) },
+      updated_at: rec.modifiedAt || e.modifiedAt, deleted: false, device_id: deviceId,
+    };
+  }
+
+  /** Used by store.fetchAudio(): downloads one recording's file. */
+  async function downloadAudio(rec) {
+    const { data, error } = await client.storage.from(AUDIO_BUCKET).download(rec.path || audioPath(rec.id));
+    if (error) throw new Error(friendly(error, 'Could not download audio'));
+    return data;
   }
 
   // ---------- pull ----------
@@ -176,7 +229,9 @@ export function createSync({
         if (r.deleted) {
           if (local || entry) ops.push({ op: 'delete', store: r.store, key: r.id, expectLocal: lt, expectQueue: qt });
         } else {
-          ops.push({ op: 'put', store: r.store, value: { ...r.data, modifiedAt: isoOf(r.updated_at) }, expectLocal: lt, expectQueue: qt });
+          const value = { ...r.data, modifiedAt: isoOf(r.updated_at) };
+          if (r.store === 'audioBlobs') { value.blob = null; value.remote = true; } // file is downloaded when played
+          ops.push({ op: 'put', store: r.store, value, expectLocal: lt, expectQueue: qt });
         }
         applied.add(r.store);
       }
@@ -226,15 +281,21 @@ export function createSync({
   }
 
   // Records created before sync existed have no stamp and no queue entry: queue them once.
+  // Per store, so stores added later (voice notes in Stage 3) are also picked up on devices that
+  // already ran this once for the earlier stores.
   async function backfill() {
-    if (await backend.sync.getMeta('backfilled', false)) return;
+    let done = await backend.sync.getMeta('backfilledStores', null);
+    if (!done) done = (await backend.sync.getMeta('backfilled', false)) ? [...STAGE2_STORES] : [];
     for (const store of stores) {
+      if (done.includes(store)) continue;
       const missing = (await backend.getAll(store)).filter((r) => !r.modifiedAt);
-      for (let i = 0; i < missing.length; i += 200) {
-        await backend.batch(missing.slice(i, i + 200).map((value) => ({ op: 'put', store, value })));
+      const chunk = store === 'audioBlobs' ? 10 : 200; // audio records hold whole files
+      for (let i = 0; i < missing.length; i += chunk) {
+        await backend.batch(missing.slice(i, i + chunk).map((value) => ({ op: 'put', store, value })));
       }
+      done = [...done, store];
+      await backend.sync.setMeta('backfilledStores', done);
     }
-    await backend.sync.setMeta('backfilled', true);
   }
 
   function schedule() {
@@ -283,6 +344,7 @@ export function createSync({
     start,
     stop,
     syncNow,
+    downloadAudio,
     getStatus: () => ({ ...status }),
     onStatus(cb) { statusCbs.add(cb); return () => statusCbs.delete(cb); },
     onApplied(cb) { appliedCbs.add(cb); return () => appliedCbs.delete(cb); },

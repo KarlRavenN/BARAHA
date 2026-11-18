@@ -2,6 +2,7 @@ import { h, toast, confirmDialog, formDialog, download } from '../core/ui.js';
 import { debounce } from '../core/util.js';
 import * as store from '../core/store.js';
 import { openContextMenu } from '../components/context-menu.js';
+import { renderAudio, blobFor } from '../components/audio-player.js';
 import { lineCheckerDialog } from './line-checker.js';
 import {
   sanitizeRichContent,
@@ -467,18 +468,11 @@ export async function schemesView(container, { battleId, roundId, editor = null 
       const rows = [];
       for (const vn of notes) {
         const audioRec = await store.getAudioBlob(vn.id);
-        let audioEl = null;
-        let blobUrl = null;
-        if (audioRec && audioRec.blob) {
-          blobUrl = URL.createObjectURL(audioRec.blob);
-          createdObjectUrls.push(blobUrl);
-          audioEl = h('audio', {
-            controls: true,
-            src: blobUrl,
-            preload: 'metadata',
-            style: 'width: 100%; height: 32px; margin-top: 4px;',
-          });
-        }
+        // Plays at once if recorded here; shows "Downloading audio…" first if it came from another device
+        const audioEl = renderAudio(audioRec, vn.id, {
+          style: 'width: 100%; height: 32px; margin-top: 4px;',
+          onUrl: (url) => createdObjectUrls.push(url),
+        });
 
         const durationSec = Math.round((vn.durationMs || 0) / 1000);
         const durStr = durationSec > 0 ? `${Math.floor(durationSec / 60)}:${String(durationSec % 60).padStart(2, '0')}` : '00:00';
@@ -507,11 +501,14 @@ export async function schemesView(container, { battleId, roundId, editor = null 
                 }
               },
             }, 'Rename'),
-            blobUrl ? h('button', {
+            audioRec ? h('button', {
               class: 'ghost-mini',
               title: 'Download audio file',
-              onclick: () => {
-                download(`${vn.title.replace(/[^\w-]/g, '_')}.webm`, audioRec.blob);
+              onclick: async () => {
+                try {
+                  const rec = await blobFor(audioRec, vn.id);
+                  download(`${vn.title.replace(/[^\w-]/g, '_')}.webm`, rec.blob);
+                } catch (e) { toast(e.message || 'Audio is not available yet', 'error'); }
               },
             }, 'Download') : null,
             h('button', {
