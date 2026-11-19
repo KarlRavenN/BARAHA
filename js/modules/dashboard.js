@@ -658,7 +658,7 @@ export async function dashboardView(root) {
         h('div', { class: 'wall-logo-row' },
           backButton({ onlyIfPrevious: true }),
           h('div', { class: 'brand-tag header-brand-tag' },
-            h('b', {}, 'BAR', h('span', { class: 'brand-accent' }, 'A'), 'HA')
+            h('img', { class: 'brand-logo-img brand-logo-img-lg', src: 'assets/baraha-logo-sm.png', alt: 'BARAHA', width: '240', height: '120' })
           ),
           h('span', { class: 'wall-venue-subtitle faint' }, 'UNDERGROUND VENUE · WRITER STUDIO')
         ),

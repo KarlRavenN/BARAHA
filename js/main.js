@@ -100,13 +100,13 @@ function drawNav(path) {
   nav.replaceChildren(
     h('div', { class: 'brand mobile-brand-bar' },
       h('a', { class: 'brand-tag brand-home-link', href: '#/', title: 'Go to The Wall', 'aria-label': 'BARAHA, go to The Wall', onclick: () => toggleDrawer(false) },
-        h('b', {}, 'BAR', h('span', { class: 'brand-accent' }, 'A'), 'HA')
+        h('img', { class: 'brand-logo-img', src: 'assets/baraha-logo-sm.png', alt: 'BARAHA', width: '240', height: '120' })
       ),
       burgerBtn
     ),
     h('div', { class: 'nav-drawer-header' },
       h('a', { class: 'brand-tag brand-home-link', href: '#/', title: 'Go to The Wall', 'aria-label': 'BARAHA, go to The Wall', onclick: () => toggleDrawer(false) },
-        h('b', {}, 'BAR', h('span', { class: 'brand-accent' }, 'A'), 'HA')
+        h('img', { class: 'brand-logo-img', src: 'assets/baraha-logo-sm.png', alt: 'BARAHA', width: '240', height: '120' })
       ),
       closeBtn
     ),
