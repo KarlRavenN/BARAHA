@@ -9,6 +9,13 @@ This document details the architecture, code organization, completed modules, da
 
 BARAHA is a dedicated, offline-first creative workspace for battle rap writers. The core structural hierarchy is **Battle → 3 Independent Rounds → Writing Materials**.
 
+### UI Polish C (account menu, Profile, Settings)
+- `js/components/account-menu.js`: avatar + name, sync dot, dropdown Profile / Settings / Sign out.
+- `js/modules/profile.js` (`#/profile`) uses new helpers in `js/core/auth.js` (`updateDisplayName`, `changePassword`, `passwordProblem`).
+- `js/core/sync-ui.js`: `watchSyncStatus`, `requestSync` (main.js answers the `baraha:sync-now` event and attaches `detail.promise`).
+- "Remove this device's data" sets `localStorage['baraha.wipeDb']`; `main.js` deletes that IndexedDB before opening anything.
+- Styles in `css/profile-settings.css`. Tests: `tests/ui-polish-c-e2e.py`.
+
 ### Phase 6 Highlights:
 1. **Highlight Boundary Escape:**
    - Pressing the **Space** key after applying a highlight cleanly escapes the `<mark>` tag.
@@ -88,7 +95,8 @@ baraha/
 │       ├── opponents.js         # Opponent dossier, attack angles & weakness notes
 │       ├── line-checker.js      # Reference database & similarity matcher
 │       ├── search.js            # Global multi-store search
-│       └── settings.js          # Full ZIP & JSON backup / restore
+│       ├── settings.js          # Rhyme engine switch, storage, cloud sync status, backup / restore, shortcuts popup
+│       └── profile.js           # Profile: rapper name, change password, remove this device's data
 └── tests/
     ├── e2e.py                   # 136 Playwright automated browser tests (100% pass)
     ├── runner.html              # In-browser unit test runner (12/12 pass)

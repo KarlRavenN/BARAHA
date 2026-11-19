@@ -4,6 +4,24 @@ Status legend: **[T]** Completed and tested · **[I]** Implemented but not fully
 
 "Tested" = covered by unit tests (12/12 in data layer, in-memory backend, store runner) and `python tests/e2e.py` (136/136 checks in real Chrome/Edge with real IndexedDB, run on final code).
 
+## UI Polish C: Account menu, Profile, Settings (branch `ui-polish-c-account-settings`)
+| Feature | Status | Notes |
+|---|---|---|
+| Account menu shows avatar + rapper name (also in the phone drawer) | [T] | Name is cut with "…" when long. Tested at 360/390/412 px. |
+| Sync dot stays on the avatar with a tooltip | [T] | Green synced, pulsing amber syncing, gray offline/off, red problem. "Sync now" and "Synced just now" left the dropdown. |
+| Dropdown: name + email, Profile, Settings, Sign out | [T] | Settings link removed from the sidebar; route `#/settings` still works. |
+| Profile page `#/profile` (back button, rapper name, read-only email) | [T] | Name 1-30 chars, trimmed, saved with `updateUser`, sidebar updates at once. Real Supabase NOT tested (stubbed). |
+| Change password (asks current password first) | [T] with a fake Supabase | Same 8-character rule as registration, show/hide, plain-word errors. |
+| "Email me a code instead" | [T] with a fake Supabase | Reuses `forgotPassword` + 6-digit `verifyOtp('recovery')` + `updatePassword`. Real email NOT tested. |
+| "Sign out and remove this device's data" | [T] with a fake Supabase | Warns about unsynced changes and offers Sync now; must type REMOVE; the local DB `baraha-<id>` is deleted on the next start. |
+| Settings cleanup | [T] | Removed Appearance, Editor & Shortcuts list, About. Kept Rhyme Engine, Storage, Backup and Restore (unchanged). Plain titles, no numbers. |
+| English rhyme switch fixed | [T] | Real `<input type="checkbox" role="switch">`, themed pill in one row with its label, works with keyboard. Same setting `englishRhymes`. |
+| "?" shortcuts popup | [T] | Ctrl+/, Ctrl+H, Ctrl+Shift+R, Alt+F, Ctrl+F, Ctrl+Z/Y, Ctrl+click multi-select. Esc or Close shuts it. |
+| Persistent storage button | [T] | Calls `navigator.storage.persist()` and reports the real result. |
+| Cloud sync section in Settings | [T] | Status, last synced, waiting count, Sync now. New helper `js/core/sync-ui.js`. There is still no on/off switch (none existed before). |
+
+Tests: `python tests/ui-polish-c-e2e.py` (96 checks, real Chromium, Supabase stubbed). Not tested: real phone, Opera, real Supabase sign-in/emails.
+
 ## Writing Workflow & UI Refinement (Phase 6)
 | Feature | Status | Notes |
 |---|---|---|

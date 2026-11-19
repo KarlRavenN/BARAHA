@@ -108,3 +108,27 @@ export function onAuthChange(callback) {
   const { data: { subscription } } = supabase.auth.onAuthStateChange(callback);
   return () => subscription.unsubscribe();
 }
+
+// ── Profile (Batch C) ──────────────────────────────────────────────────────
+
+/** Same rule as registration (auth-screens.js): at least 8 characters. */
+export const PASSWORD_MIN = 8;
+export const passwordProblem = (pw) =>
+  !pw || pw.length < PASSWORD_MIN ? `Password must be at least ${PASSWORD_MIN} characters.` : null;
+
+/** Save the rapper name shown in the app. Resolves { user, error }. */
+export async function updateDisplayName(name) {
+  const { data, error } = await supabase.auth.updateUser({ data: { display_name: name } });
+  return { user: data?.user ?? null, error };
+}
+
+/**
+ * Change password safely: prove the current password first, then set the new one.
+ * Resolves { error, wrongCurrent }.
+ */
+export async function changePassword(email, currentPassword, newPassword) {
+  const { error: checkError } = await supabase.auth.signInWithPassword({ email, password: currentPassword });
+  if (checkError) return { error: checkError, wrongCurrent: true };
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+  return { error, wrongCurrent: false };
+}
