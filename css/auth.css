@@ -278,7 +278,16 @@
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 
+.auth-title-img { margin: -8px 0 0 -10px; line-height: 0; }
+.auth-title-img img {
+  display: block;
+  width: min(250px, 78%);
+  height: auto;
+  filter: drop-shadow(0 0 1.5px rgba(255, 235, 230, 0.55)) drop-shadow(0 3px 5px rgba(0, 0, 0, 0.45)) brightness(1.2);
+}
+
 .auth-title + .auth-form { margin-top: 20px; }
+.auth-title-img + .auth-form { margin-top: 18px; }
 
 .auth-sub {
   font-size: 14px;

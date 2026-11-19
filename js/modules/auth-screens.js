@@ -321,7 +321,9 @@ export function renderVerifyOtp(email, type, onDone) {
 
 export function renderLogin(onDone) {
   const wrap = authShell(
-      h('h1', { class: 'auth-title' }, 'Sign in'),
+      h('h1', { class: 'auth-title auth-title-img' },
+        h('img', { src: 'assets/sign-in-title.png', alt: 'Sign in', width: '280', height: '130' })
+      ),
       h('form', {
         class: 'auth-form',
         onsubmit: async (e) => {
