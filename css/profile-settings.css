@@ -1,0 +1,61 @@
+/* Batch C: account menu, Profile page, Settings (switch, shortcuts popup, cloud sync). */
+
+/* ---- Account menu ---- */
+.account-name { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; font-weight: 600; color: var(--text); }
+.account-dropdown-item {
+  display: block; width: 100%; padding: 10px 14px; background: none; border: none; border-radius: 0;
+  color: var(--text); font-size: var(--fs-sm); font-family: var(--font-ui); text-align: left; cursor: pointer;
+}
+.account-dropdown-item:hover, .account-dropdown-item:focus-visible { background: var(--surface-3); color: var(--white); }
+
+/* ---- Profile ---- */
+.profile-card { padding: 16px 20px; max-width: 560px; display: grid; gap: 12px; }
+.profile-card .hint { font-size: 12px; color: var(--text-faint); margin: 0; }
+.profile-msg { min-height: 1.3em; font-size: 13px; margin: 0; }
+.profile-msg.err { color: var(--red-text); }
+.profile-msg.ok { color: #6fd08c; }
+.pw-wrap { position: relative; }
+.pw-wrap input { padding-right: 70px; }
+.pw-wrap button { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); padding: 3px 9px; font-size: 12px; }
+.profile-danger { border-color: rgba(220, 38, 38, 0.4); }
+
+/* ---- Settings: switch row ---- */
+.setting-row { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.setting-row .setting-text { min-width: 0; }
+.switch { position: relative; display: inline-block; flex: 0 0 auto; width: 46px; height: 26px; margin: 0; cursor: pointer; }
+.switch input[type="checkbox"] {
+  appearance: none; -webkit-appearance: none; position: absolute; inset: 0; z-index: 2;
+  width: 100%; height: 100%; margin: 0; padding: 0; border: 0; border-radius: 999px; background: transparent; opacity: 0; cursor: pointer;
+}
+.switch .track {
+  position: absolute; inset: 0; background: var(--surface-2); border: 1px solid var(--line-strong);
+  border-radius: 999px; transition: background-color .15s, border-color .15s;
+}
+.switch .track::after {
+  content: ''; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--text-dim); transition: transform .15s, background-color .15s;
+}
+.switch input:checked + .track { background: var(--red); border-color: var(--red); }
+.switch input:checked + .track::after { transform: translateX(20px); background: #fff; }
+.switch input:focus-visible + .track { outline: 2px solid #fff; outline-offset: 2px; }
+
+.help-btn { width: 36px; height: 36px; min-width: 36px; padding: 0; border-radius: 50%; font-weight: 700; flex: 0 0 auto; }
+.settings-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.shortcut-list { display: grid; gap: 10px; }
+.shortcut-list > div { display: flex; justify-content: space-between; align-items: center; gap: 14px; }
+.shortcut-list .tag { white-space: nowrap; }
+.sync-grid { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; font-size: 13px; margin-bottom: 12px; }
+.sync-grid dt { color: var(--text-dim); } .sync-grid dd { margin: 0; display: flex; align-items: center; gap: 8px; }
+.sync-grid .sync-dot { position: static; flex: 0 0 auto; width: 10px; height: 10px; border: 0; }
+@media (max-width: 480px) { .setting-row { align-items: flex-start; } .sync-grid { grid-template-columns: 1fr; } }
+
+/* ---- Fix: text at the very bottom of a long round could not be clicked ----
+   The editor box was stretched to the scroll area's height, so lines past that height stuck out of the box
+   and clicks on them landed on the area behind it (caret jumped to the top). Let the box grow with its text. */
+.editor-area > .editor { align-self: flex-start; min-height: max(58vh, 100%); }
+
+/* ---- Profile: two columns on wide screens (name + email left, password + this device right) ---- */
+.profile-columns { display: grid; grid-template-columns: 1fr; gap: var(--s4, 16px); align-items: start; }
+.profile-col { min-width: 0; }
+.profile-col .profile-card { max-width: none; }
+@media (min-width: 900px) { .profile-columns { grid-template-columns: 1fr 1fr; gap: var(--s5, 24px); } }

@@ -1,17 +1,44 @@
 import { h, toast, confirmDialog, download } from '../core/ui.js';
 import { backButton } from '../components/back-button.js';
 import * as store from '../core/store.js';
-import { SCHEMA_VERSION } from '../core/db.js';
+import { watchSyncStatus, requestSync, SYNC_LABELS, timeAgoText } from '../core/sync-ui.js';
+
+async function storageLine() {
+  try {
+    if (!navigator.storage?.estimate) return 'Not available in this browser';
+    const { usage = 0, quota = 0 } = await navigator.storage.estimate();
+    const persisted = navigator.storage.persisted ? await navigator.storage.persisted() : false;
+    return `${(usage / 1048576).toFixed(2)} MB used of about ${(quota / 1048576).toFixed(0)} MB · persistent storage: ${persisted ? 'granted' : 'not granted'}`;
+  } catch { return 'Not available in this browser'; }
+}
+
+function shortcutsDialog() {
+  const rows = [
+    ['Global search', 'Ctrl + /'],
+    ['Highlight selected text', 'Ctrl + H'],
+    ['Focus Rhyme Bank search', 'Ctrl + Shift + R'],
+    ['Focus mode (Esc to exit)', 'Alt + F'],
+    ['Find in this round', 'Ctrl + F'],
+    ['Undo / Redo', 'Ctrl + Z / Ctrl + Y'],
+    ['Select several pieces of text (desktop)', 'Ctrl + click and drag'],
+  ];
+  const close = () => { scrim.remove(); document.removeEventListener('keydown', onKey, true); trigger?.focus(); };
+  const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+  const closeBtn = h('button', { type: 'button', class: 'primary', onclick: close }, 'Close');
+  const scrim = h('div', { class: 'scrim', onmousedown: (e) => { if (e.target === scrim) close(); } },
+    h('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': 'Keyboard shortcuts' },
+      h('h2', {}, 'Keyboard shortcuts'),
+      h('div', { class: 'shortcut-list' }, ...rows.map(([what, keys]) =>
+        h('div', {}, h('span', { class: 'small muted' }, what), h('span', { class: 'tag' }, keys)))),
+      h('div', { class: 'actions' }, closeBtn)));
+  const trigger = document.activeElement;
+  (document.getElementById('overlay') || document.body).append(scrim);
+  document.addEventListener('keydown', onKey, true);
+  closeBtn.focus();
+}
 
 export async function settingsView(root) {
-  let storage = 'Not available in this browser';
-  try {
-    if (navigator.storage?.estimate) {
-      const { usage = 0, quota = 0 } = await navigator.storage.estimate();
-      const persisted = navigator.storage.persisted ? await navigator.storage.persisted() : false;
-      storage = `${(usage / 1048576).toFixed(2)} MB used of about ${(quota / 1048576).toFixed(0)} MB · persistent storage: ${persisted ? 'granted' : 'not granted'}`;
-    }
-  } catch { /* ignore */ }
+  let storage = await storageLine();
 
   const fileInput = h('input', {
     type: 'file',
@@ -70,8 +97,8 @@ export async function settingsView(root) {
   });
 
   const englishToggle = h('input', {
-    type: 'checkbox',
-    'aria-label': 'English rhyme suggestions',
+    type: 'checkbox', role: 'switch', id: 'englishRhymesSwitch',
+    'aria-label': 'English rhyme suggestions (online)',
     onchange: async (e) => {
       await store.setEnglishRhymesEnabled(e.target.checked);
       toast(e.target.checked ? 'English rhyme suggestions on' : 'English rhyme suggestions off');
@@ -79,80 +106,87 @@ export async function settingsView(root) {
   });
   englishToggle.checked = await store.getEnglishRhymesEnabled();
 
+  // ---- Storage ----
+  const storageText = h('p', { class: 'muted small', style: 'margin: 6px 0 0;' }, storage);
+  const persistBtn = h('button', {
+    type: 'button', class: 'ghost',
+    onclick: async () => {
+      if (!navigator.storage?.persist) { toast('This browser cannot do persistent storage.', 'error'); return; }
+      try {
+        const granted = await navigator.storage.persist();
+        toast(granted ? 'Persistent storage granted' : 'The browser did not grant persistent storage', granted ? 'info' : 'error');
+      } catch { toast('Could not ask for persistent storage', 'error'); }
+      storageText.textContent = await storageLine();
+    },
+  }, 'Request persistent storage');
+
+  // ---- Cloud sync ----
+  const syncDot = h('span', { class: 'sync-dot', 'aria-hidden': 'true' });
+  const syncState = h('span', {}, 'Starting…');
+  const syncLast = h('dd', {}, 'not yet');
+  const syncPending = h('dd', {}, '0');
+  const syncMsg = h('p', { class: 'small faint', style: 'margin: 0 0 10px;' });
+  const syncBtn = h('button', {
+    type: 'button', class: 'primary',
+    onclick: async () => {
+      syncBtn.disabled = true;
+      await requestSync();
+      syncBtn.disabled = false;
+    },
+  }, 'Sync now');
+  function paintSync(st) {
+    if (!st) return;
+    syncDot.dataset.state = st.state;
+    syncState.textContent = SYNC_LABELS[st.state] || st.state;
+    syncLast.textContent = st.lastSyncedAt ? timeAgoText(st.lastSyncedAt) : 'not yet';
+    syncPending.textContent = String(st.pending || 0);
+    syncMsg.textContent = st.state === 'error' && st.error ? `Last problem: ${st.error}` : '';
+    syncBtn.disabled = st.state === 'syncing';
+  }
+  const stopWatching = watchSyncStatus(paintSync);
+
+  const helpBtn = h('button', {
+    type: 'button', class: 'ghost help-btn', title: 'Keyboard shortcuts', 'aria-label': 'Keyboard shortcuts',
+    onclick: shortcutsDialog,
+  }, '?');
+
   root.replaceChildren(h('div', { class: 'page stack' },
     h('div', { class: 'page-head' },
-      h('div', {},
-        h('div', { class: 'page-head-main' }, backButton(), h('h1', {}, 'Settings')),
-        h('p', { class: 'small muted' }, 'Configure workspace appearance, shortcuts, offline storage, and data backup.')
-      )
-    ),
+      h('div', { class: 'settings-head', style: 'width:100%' },
+        h('div', {},
+          h('div', { class: 'page-head-main' }, backButton(), h('h1', {}, 'Settings')),
+          h('p', { class: 'small muted' }, 'Rhyme engine, storage, cloud sync, and backup.')),
+        helpBtn)),
 
-    // 1. Appearance Section
     h('section', { class: 'settings-section' },
-      h('div', { class: 'section-title' }, '1. Appearance & Theme'),
+      h('div', { class: 'section-title' }, 'Rhyme Engine'),
       h('div', { class: 'card', style: 'padding: 16px 20px;' },
-        h('div', { class: 'row', style: 'justify-content: space-between; align-items:center;' },
-          h('div', {},
-            h('b', {}, 'Underground Hip-Hop Studio (V3 Edition)'),
-            h('p', { class: 'small muted', style: 'margin: 4px 0 0;' }, 'Authentic concrete & poster texture, spray accents, and distressed battle flyer aesthetic.')
-          ),
-          h('span', { class: 'tag red' }, 'Active')
-        )
-      )
-    ),
+        h('div', { class: 'setting-row' },
+          h('div', { class: 'setting-text' },
+            h('label', { for: 'englishRhymesSwitch', style: 'color: var(--text); font-weight: 700; font-size: var(--fs-base); margin: 0;' }, 'English rhyme suggestions (online)'),
+            h('p', { class: 'small muted', style: 'margin: 4px 0 0;' }, 'Adds a bigger English pool using the free Datamuse API (the data behind RhymeZone). Off by default. When on, only the single English word you search is sent, never your bars. Results are cached on this device. Filipino and Taglish always stay 100% offline.')),
+          h('span', { class: 'switch' }, englishToggle, h('span', { class: 'track', 'aria-hidden': 'true' }))))),
 
-    // 2. Editor & Shortcuts Section
     h('section', { class: 'settings-section' },
-      h('div', { class: 'section-title' }, '2. Editor & Shortcuts'),
-      h('div', { class: 'card', style: 'padding: 16px 20px;' },
-        h('div', { class: 'stack', style: 'gap: 8px;' },
-          h('div', { class: 'row', style: 'justify-content: space-between;' },
-            h('span', { class: 'small muted' }, 'Global Search Quick Open:'),
-            h('span', { class: 'tag' }, 'Ctrl + /')
-          ),
-          h('div', { class: 'row', style: 'justify-content: space-between;' },
-            h('span', { class: 'small muted' }, 'Highlight Selected Bar:'),
-            h('span', { class: 'tag' }, 'Ctrl + H')
-          ),
-          h('div', { class: 'row', style: 'justify-content: space-between;' },
-            h('span', { class: 'small muted' }, 'Focus Rhyme Bank Search:'),
-            h('span', { class: 'tag' }, 'Ctrl + Shift + R')
-          ),
-          h('div', { class: 'row', style: 'justify-content: space-between;' },
-            h('span', { class: 'small muted' }, 'Toggle Distraction-Free Focus:'),
-            h('span', { class: 'tag' }, 'Alt + F  (Esc to exit)')
-          )
-        )
-      )
-    ),
-
-    // 3. Rhyme Engine Section
-    h('section', { class: 'settings-section' },
-      h('div', { class: 'section-title' }, '3. Rhyme Engine'),
-      h('div', { class: 'card', style: 'padding: 16px 20px;' },
-        h('label', { class: 'row', style: 'gap: 10px; align-items: flex-start; cursor: pointer;' },
-          englishToggle,
-          h('div', {},
-            h('b', {}, 'English rhyme suggestions (online)'),
-            h('p', { class: 'small muted', style: 'margin: 4px 0 0;' }, 'Adds a bigger English pool using the free Datamuse API (the data behind RhymeZone). Off by default. When on, only the single English word you search is sent, never your bars. Results are cached on this device. Filipino and Taglish always stay 100% offline.')
-          )
-        )
-      )
-    ),
-
-    // 4. Storage Section
-    h('section', { class: 'settings-section' },
-      h('div', { class: 'section-title' }, '4. Storage & Offline Persistence'),
+      h('div', { class: 'section-title' }, 'Storage'),
       h('div', { class: 'card', style: 'padding: 16px 20px;' },
         h('b', {}, 'Local Browser Database (IndexedDB)'),
-        h('p', { class: 'muted small', style: 'margin: 6px 0 0;' }, storage),
-        h('p', { class: 'small faint', style: 'margin: 4px 0 0;' }, 'All data, rhymes, drafts, and recordings stay on your machine. The only optional exception is English rhyme suggestions (section 3), which is off by default.')
-      )
-    ),
+        storageText,
+        h('p', { class: 'small faint', style: 'margin: 4px 0 12px;' }, 'Your work is saved on this device first. Persistent storage asks the browser not to clear it when space runs low.'),
+        persistBtn)),
 
-    // 4. Backup and Restore Section
     h('section', { class: 'settings-section' },
-      h('div', { class: 'section-title' }, '5. Backup and Restore'),
+      h('div', { class: 'section-title' }, 'Cloud sync'),
+      h('div', { class: 'card', style: 'padding: 16px 20px;' },
+        h('dl', { class: 'sync-grid' },
+          h('dt', {}, 'Status'), h('dd', {}, syncDot, syncState),
+          h('dt', {}, 'Last synced'), syncLast,
+          h('dt', {}, 'Waiting to upload'), syncPending),
+        syncMsg,
+        syncBtn)),
+
+    h('section', { class: 'settings-section' },
+      h('div', { class: 'section-title' }, 'Backup and Restore'),
       h('div', { class: 'card', style: 'padding: 16px 20px;' },
         h('p', { class: 'small muted', style: 'margin-bottom: 14px;' }, 'Export your entire workspace including all 3-round battle material, drafts, schemes, saved rhymes, and voice takes:'),
         h('div', { class: 'row', style: 'gap: 10px;' },
@@ -184,22 +218,8 @@ export async function settingsView(root) {
             class: 'ghost',
             onclick: () => fileInput.click(),
           }, 'Restore from Backup (ZIP or JSON)…'),
-          fileInput
-        )
-      )
-    ),
-
-    // 5. About Section
-    h('section', { class: 'settings-section' },
-      h('div', { class: 'section-title' }, '6. About BARAHA'),
-      h('div', { class: 'card', style: 'padding: 16px 20px;' },
-        h('div', { class: 'row', style: 'gap: 8px; align-items: baseline;' },
-          h('h3', { style: 'margin: 0; font-family: var(--font-display); font-size: 20px;' }, 'BARAHA V3'),
-          h('span', { class: 'tag red' }, 'Underground Battle Rap Edition')
-        ),
-        h('p', { class: 'small muted', style: 'margin: 6px 0 0;' }, 'Engineered specifically for battle rap preparation, rhyme scheme structuring, opponent research, and live cadence recording.'),
-        h('p', { class: 'small faint', style: 'margin: 4px 0 0;' }, `Database schema v${SCHEMA_VERSION} · FlipTop / KOTD / URL Inspired Workspace · 100% Offline`)
-      )
-    )
+          fileInput)))
   ));
+
+  return { destroy: stopWatching };
 }

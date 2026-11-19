@@ -275,7 +275,16 @@ export function mountTextEditor(container, {
     class: 'editor-area',
     onclick: (e) => {
       if (e.target === editorArea) {
-        area.focus();
+        // Clicked the blank band around the writing box: put the caret at the END (not the top) and don't scroll.
+        area.focus({ preventScroll: true });
+        const sel = window.getSelection();
+        if (sel) {
+          const r = document.createRange();
+          r.selectNodeContents(area);
+          r.collapse(false);
+          sel.removeAllRanges();
+          sel.addRange(r);
+        }
       }
     },
   }, area);

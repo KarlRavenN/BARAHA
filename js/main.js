@@ -10,6 +10,7 @@ import { lineCheckerView } from './modules/line-checker.js';
 import { searchView } from './modules/search.js';
 import { voiceNotesView } from './modules/voice-notes.js';
 import { settingsView } from './modules/settings.js';
+import { profileView } from './modules/profile.js';
 import { mountAuthFlow } from './modules/auth-screens.js';
 import { buildAccountMenu } from './components/account-menu.js';
 import { getUser, onAuthChange } from './core/auth.js';
@@ -42,7 +43,6 @@ const NAV = [
   { href: '#/line-checker', label: 'Line Checker', match: (p) => p.startsWith('/line-checker') },
   { href: '#/search', label: 'Global Search', match: (p) => p.startsWith('/search') },
   { href: '#/voice', label: 'Voice Inbox', match: (p) => p.startsWith('/voice') },
-  { href: '#/settings', label: 'Settings', match: (p) => p.startsWith('/settings') },
 ];
 
 // Current signed-in user, kept in sync by onAuthChange
@@ -181,6 +181,7 @@ async function startApp() {
   route('/search', guard(searchView));
   route('/voice', guard((v) => voiceNotesView(v, { isGlobalInbox: true })));
   route('/settings', guard(settingsView));
+  route('/profile', guard(profileView));
 
   // Global Keyboard Shortcuts
   window.addEventListener('keydown', (e) => {
@@ -235,11 +236,32 @@ function startSync() {
     document.dispatchEvent(new CustomEvent('baraha:sync-status', { detail: status }));
   });
   syncEngine.onApplied(() => refreshWhenIdle());
-  window.addEventListener('baraha:sync-now', () => syncEngine.syncNow({ force: true }));
+  window.addEventListener('baraha:sync-now', (e) => {
+    const p = syncEngine.syncNow({ force: true });
+    if (e.detail && typeof e.detail === 'object') e.detail.promise = p; // lets Settings/Profile wait for it
+  });
   syncEngine.start().catch((e) => console.warn('[sync] could not start', e));
 }
 
+// The name changed on the Profile page: update the sidebar right away.
+document.addEventListener('baraha:profile-updated', (e) => {
+  if (e.detail?.user) currentUser = e.detail.user;
+  drawNav(location.hash.slice(1) || '/');
+});
+
+// "Sign out and remove this device's data" (Profile): the database can only be deleted before it is opened.
+async function wipeDeviceDataIfRequested() {
+  let name = null;
+  try { name = localStorage.getItem('baraha.wipeDb'); localStorage.removeItem('baraha.wipeDb'); } catch { /* ignore */ }
+  if (!name || !/^baraha(-[\w-]+)?$/.test(name)) return;
+  await new Promise((resolve) => {
+    const req = indexedDB.deleteDatabase(name);
+    req.onsuccess = req.onerror = req.onblocked = () => resolve();
+  });
+}
+
 async function boot() {
+  await wipeDeviceDataIfRequested();
   // Keep currentUser in sync whenever the session changes
   onAuthChange((event, session) => {
     currentUser = session?.user ?? null;
