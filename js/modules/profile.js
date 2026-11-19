@@ -191,8 +191,11 @@ export async function profileView(root) {
       h('div', {},
         h('div', { class: 'page-head-main' }, backButton(), h('h1', {}, 'Profile')),
         h('p', { class: 'small muted' }, 'Your name, sign-in and password.'))),
-    h('section', { class: 'settings-section' }, h('div', { class: 'section-title' }, 'Rapper name'), nameForm),
-    h('section', { class: 'settings-section' }, h('div', { class: 'section-title' }, 'Email'), emailCard),
-    h('section', { class: 'settings-section' }, h('div', { class: 'section-title' }, 'Password'), pwForm, codeCard),
-    h('section', { class: 'settings-section' }, h('div', { class: 'section-title' }, 'This device'), wipeCard)));
+    h('div', { class: 'profile-columns' },
+      h('div', { class: 'profile-col stack' },
+        h('section', { class: 'settings-section' }, h('div', { class: 'section-title' }, 'Rapper name'), nameForm),
+        h('section', { class: 'settings-section' }, h('div', { class: 'section-title' }, 'Email'), emailCard)),
+      h('div', { class: 'profile-col stack' },
+        h('section', { class: 'settings-section' }, h('div', { class: 'section-title' }, 'Password'), pwForm, codeCard),
+        h('section', { class: 'settings-section' }, h('div', { class: 'section-title' }, 'This device'), wipeCard)))));
 }

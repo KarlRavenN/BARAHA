@@ -206,6 +206,39 @@ def run():
         page.locator('.help-btn').click(); page.locator('.modal button', has_text='Close').click(); page.wait_for_timeout(200)
         check('Close button closes it', page.locator('.modal').count() == 0)
 
+        # ================= Profile two-column layout =================
+        go(page, '#/profile', 800)
+        pos = page.evaluate("""() => { const r = (t) => [...document.querySelectorAll('.section-title')].find(e => e.textContent === t).getBoundingClientRect();
+          return { name: r('Rapper name'), email: r('Email'), pw: r('Password'), dev: r('This device') }; }""")
+        check('desktop: Password + This device are in the RIGHT column', pos['pw']['left'] > pos['name']['left'] + 200 and abs(pos['dev']['left'] - pos['pw']['left']) < 2, str({k: round(v['left']) for k, v in pos.items()}))
+        check('desktop: Rapper name + Email in the LEFT column, Password starts at the top beside Name', abs(pos['email']['left'] - pos['name']['left']) < 2 and abs(pos['pw']['top'] - pos['name']['top']) < 3, str({k: round(v['top']) for k, v in pos.items()}))
+        check('desktop: This device sits under Password', pos['dev']['top'] > pos['pw']['top'])
+        page.set_viewport_size({'width': 390, 'height': 800}); page.wait_for_timeout(300)
+        pos = page.evaluate("""() => { const r = (t) => [...document.querySelectorAll('.section-title')].find(e => e.textContent === t).getBoundingClientRect(); return { name: r('Rapper name').left, pw: r('Password').left, nt: r('Rapper name').top, pt: r('Password').top }; }""")
+        check('phone: columns stack into one', abs(pos['name'] - pos['pw']) < 2 and pos['pt'] > pos['nt'])
+        page.set_viewport_size({'width': 1280, 'height': 800})
+
+        # ================= Bug: bottom of a long round could not be clicked =================
+        seed = page.evaluate("""async () => { const s = await import('/js/core/store.js'); const { battle, rounds } = await s.createBattle({ title: 'Long', opponentName: 'Z' }); return { id: battle.id, r: rounds[0].id }; }""")
+        go(page, f"#/battle/{seed['id']}/{seed['r']}", 1500); page.wait_for_selector('.editor[contenteditable="true"]')
+        page.click('.editor')
+        page.evaluate("""() => { const e = document.querySelector('.editor'); e.innerHTML = Array.from({ length: 90 }, (_, i) => `<div>line number ${i}</div>`).join(''); e.dispatchEvent(new Event('input', { bubbles: true })); }""")
+        page.wait_for_timeout(500)
+        box = page.evaluate("(() => { const e = document.querySelector('.editor'); return { h: e.getBoundingClientRect().height, sh: e.scrollHeight }; })()")
+        check('writing box grows with its text (no overflow outside the box)', box['h'] >= box['sh'] - 2, str(box))
+        page.evaluate("document.querySelector('.editor-area').scrollTop = 1e6"); page.wait_for_timeout(200)
+        vis = page.evaluate("(() => { const a = document.querySelector('.editor-area').getBoundingClientRect(); const ws = [...document.querySelectorAll('.editor > div')]; const last = ws.filter(d => { const r = d.getBoundingClientRect(); return r.top >= a.top && r.bottom <= a.bottom - 4; }).pop(); const r = last.getBoundingClientRect(); return { text: last.textContent, x: r.left + 20, y: r.top + r.height / 2, top: document.querySelector('.editor-area').scrollTop }; })()")
+        page.mouse.click(vis['x'], vis['y']); page.wait_for_timeout(300)
+        after = page.evaluate("({ line: getSelection().anchorNode?.textContent, top: document.querySelector('.editor-area').scrollTop })")
+        check('click on a line at the very bottom puts the caret THERE (not at the top)', after['line'] == vis['text'], f"{vis['text']} vs {after['line']}")
+        check('and the view does not jump to the top', after['top'] > vis['top'] - 50, f"{vis['top']} -> {after['top']}")
+        a = page.evaluate("(() => { const a = document.querySelector('.editor-area'); const r = a.getBoundingClientRect(); return { x: r.left + 4, y: r.bottom - 6 }; })()")
+        page.mouse.click(a['x'], a['y']); page.wait_for_timeout(300)
+        after = page.evaluate("({ line: getSelection().anchorNode?.textContent, top: document.querySelector('.editor-area').scrollTop })")
+        check('click in the blank band at the bottom puts the caret at the END, no jump', after['line'] is not None and 'line number 89' in after['line'] and after['top'] > 500, str(after))
+        page.keyboard.type('END'); page.wait_for_timeout(200)
+        check('typing there lands at the end of the text', page.evaluate("document.querySelector('.editor').innerText.trim().endsWith('END')"))
+
         # ================= phones =================
         for w in (360, 390, 412):
             page.set_viewport_size({'width': w, 'height': 800})

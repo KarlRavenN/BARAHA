@@ -20,7 +20,10 @@ Status legend: **[T]** Completed and tested · **[I]** Implemented but not fully
 | Persistent storage button | [T] | Calls `navigator.storage.persist()` and reports the real result. |
 | Cloud sync section in Settings | [T] | Status, last synced, waiting count, Sync now. New helper `js/core/sync-ui.js`. There is still no on/off switch (none existed before). |
 
-Tests: `python tests/ui-polish-c-e2e.py` (96 checks, real Chromium, Supabase stubbed). Not tested: real phone, Opera, real Supabase sign-in/emails.
+| Profile page two columns on wide screens | [T] | Name + Email left, Password + This device right; one column on phones. |
+| Fix: bottom of a long round could not be clicked | [T] | The writing box now grows with its text (`.editor-area > .editor` in `css/profile-settings.css`); clicking the blank band under the text puts the caret at the end instead of the top. |
+
+Tests: `python tests/ui-polish-c-e2e.py` (about 100 checks, real Chromium, Supabase stubbed). Not tested: real phone, Opera, real Supabase sign-in/emails.
 
 ## Writing Workflow & UI Refinement (Phase 6)
 | Feature | Status | Notes |

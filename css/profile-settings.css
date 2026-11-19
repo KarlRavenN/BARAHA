@@ -48,3 +48,14 @@
 .sync-grid dt { color: var(--text-dim); } .sync-grid dd { margin: 0; display: flex; align-items: center; gap: 8px; }
 .sync-grid .sync-dot { position: static; flex: 0 0 auto; width: 10px; height: 10px; border: 0; }
 @media (max-width: 480px) { .setting-row { align-items: flex-start; } .sync-grid { grid-template-columns: 1fr; } }
+
+/* ---- Fix: text at the very bottom of a long round could not be clicked ----
+   The editor box was stretched to the scroll area's height, so lines past that height stuck out of the box
+   and clicks on them landed on the area behind it (caret jumped to the top). Let the box grow with its text. */
+.editor-area > .editor { align-self: flex-start; min-height: max(58vh, 100%); }
+
+/* ---- Profile: two columns on wide screens (name + email left, password + this device right) ---- */
+.profile-columns { display: grid; grid-template-columns: 1fr; gap: var(--s4, 16px); align-items: start; }
+.profile-col { min-width: 0; }
+.profile-col .profile-card { max-width: none; }
+@media (min-width: 900px) { .profile-columns { grid-template-columns: 1fr 1fr; gap: var(--s5, 24px); } }
