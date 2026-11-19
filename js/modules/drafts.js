@@ -2,15 +2,12 @@ import { h, toast, confirmDialog, formDialog } from '../core/ui.js';
 import { backButton } from '../components/back-button.js';
 import { debounce } from '../core/util.js';
 import * as store from '../core/store.js';
-import { openContextMenu } from '../components/context-menu.js';
+import { createEditorOps, showEditorMenu } from '../components/editor-menu.js';
 import { lineCheckerDialog } from './line-checker.js';
 import {
   sanitizeRichContent,
   htmlToPlainText,
   plainTextToHtml,
-  applyHighlight,
-  removeHighlight,
-  clearAllHighlights,
   attachHighlightBoundaryHandler,
 } from '../components/rich-editor.js';
 
@@ -257,69 +254,49 @@ export async function draftsView(container, { battleId, roundId, roundNumber, ed
       debouncedAutosave();
     });
 
+    // Right-click menu: Cut / Copy / Paste, highlight (same colours as the editor toolbar), rhyme tools
+    const ops = createEditorOps(contentTextarea, { onChanged: () => saveCurrentChanges() });
     contentTextarea.addEventListener('contextmenu', (e) => {
-      const sel = window.getSelection();
-      const selected = sel ? sel.toString().trim() : '';
-      if (!selected) return;
-      e.preventDefault();
-
-      const highlightOpts = {
-        onHighlight: (color) => {
-          const ok = applyHighlight(color, contentTextarea);
-          if (ok) {
-            saveCurrentChanges();
-            toast('Highlight applied');
-          }
-        },
-        onRemoveHighlight: () => {
-          const ok = removeHighlight(contentTextarea);
-          if (ok) {
-            saveCurrentChanges();
-            toast('Highlight removed');
-          }
-        },
-        onClearAllHighlights: () => {
-          clearAllHighlights(contentTextarea);
-          saveCurrentChanges();
-          toast('Highlights cleared');
-        },
-      };
-
-      const actions = [
-        {
-          label: `📌 Pin Bar "${selected.length > 20 ? selected.slice(0, 20) + '…' : selected}"`,
-          action: async () => {
-            await store.createPinnedBar({ text: selected, battleId, roundId, source: 'Draft' });
-            window.dispatchEvent(new CustomEvent('baraha:pinned-updated'));
-            toast('Bar pinned');
+      if (contentTextarea.getAttribute('contenteditable') === 'false') return;
+      showEditorMenu(e, ops, {
+        buildActions: (texts) => {
+          const selected = texts.join('\n');
+          if (!selected) return [];
+        return [
+          {
+            label: `📌 Pin Bar "${selected.length > 20 ? selected.slice(0, 20) + '…' : selected}"`,
+            action: async () => {
+              await store.createPinnedBar({ text: selected, battleId, roundId, source: 'Draft' });
+              window.dispatchEvent(new CustomEvent('baraha:pinned-updated'));
+              toast('Bar pinned');
+            },
           },
-        },
-        {
-          label: `Find Rhymes for "${selected.length > 18 ? selected.slice(0, 18) + '…' : selected}"`,
-          action: () => {
-            if (editor && typeof editor.onRhymeSearch === 'function') {
-              editor.onRhymeSearch(selected);
-            } else {
-              toast(`Selected "${selected}"`);
-            }
+          {
+            label: `Find Rhymes for "${selected.length > 18 ? selected.slice(0, 18) + '…' : selected}"`,
+            action: () => {
+              if (editor && typeof editor.onRhymeSearch === 'function') {
+                editor.onRhymeSearch(selected);
+              } else {
+                toast(`Selected "${selected}"`);
+              }
+            },
           },
-        },
-        {
-          label: 'Save Selection to Rhyme Bank',
-          action: async () => {
-            await store.createSavedRhyme({ text: selected, battleId, roundId, collection: 'Drafts' });
-            toast(`Saved "${selected}" to Rhyme Bank`);
+          {
+            label: 'Save Selection to Rhyme Bank',
+            action: async () => {
+              await store.createSavedRhyme({ text: selected, battleId, roundId, collection: 'Drafts' });
+              toast(`Saved "${selected}" to Rhyme Bank`);
+            },
           },
-        },
-        {
-          label: 'Check for Similar Lines (Line Checker)',
-          action: () => {
-            lineCheckerDialog(selected, { battleId, roundId });
+          {
+            label: 'Check for Similar Lines (Line Checker)',
+            action: () => {
+              lineCheckerDialog(selected, { battleId, roundId });
+            },
           },
+          ];
         },
-      ];
-
-      openContextMenu(e, selected, actions, highlightOpts);
+      });
     });
 
     const tagsInput = h('input', {

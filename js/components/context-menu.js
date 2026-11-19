@@ -1,23 +1,20 @@
 import { h, confirmDialog } from '../core/ui.js';
-import { isEditableWritingArea } from './rich-editor.js';
+import { HIGHLIGHT_PALETTE } from './highlight-state.js';
+
+// Kept as an export for older imports; the palette itself now lives in highlight-state.js
+export { HIGHLIGHT_PALETTE };
 
 let activeMenu = null;
-
-export const HIGHLIGHT_PALETTE = [
-  { label: 'Red',    color: '#A60000', title: 'Red (Danger / Key Bar)' },
-  { label: 'Orange', color: '#D97706', title: 'Orange (Angle / Setup)' },
-  { label: 'Yellow', color: '#B45309', title: 'Yellow (Rhyme / Payoff)' },
-  { label: 'Green',  color: '#15803D', title: 'Green (Completed Bar)' },
-  { label: 'Blue',   color: '#1D4ED8', title: 'Blue (Delivery Cue)' },
-  { label: 'Purple', color: '#7E22CE', title: 'Purple (Scheme / Concept)' },
-];
 
 export function closeContextMenu() {
   if (activeMenu) {
     activeMenu.remove();
     activeMenu = null;
     document.removeEventListener('click', onDocClick);
-    document.removeEventListener('keydown', onDocKey);
+    document.removeEventListener('contextmenu', onDocContext, true);
+    document.removeEventListener('keydown', onDocKey, true);
+    window.removeEventListener('resize', closeContextMenu);
+    window.removeEventListener('blur', closeContextMenu);
   }
 }
 
@@ -27,88 +24,118 @@ function onDocClick(e) {
   }
 }
 
+function onDocContext(e) {
+  // A right-click anywhere else closes the old menu first (the new menu, if any, opens afterwards)
+  if (activeMenu && !activeMenu.contains(e.target)) closeContextMenu();
+}
+
 function onDocKey(e) {
   if (e.key === 'Escape') {
+    e.stopPropagation(); // closing the menu must not also leave focus mode
     closeContextMenu();
   }
 }
 
+function placeMenu(menu, event) {
+  menu.style.maxHeight = `${window.innerHeight - 20}px`;
+  menu.style.overflowY = 'auto';
+  const menuRect = menu.getBoundingClientRect();
+  let x = event.clientX;
+  let y = event.clientY;
+  if (x + menuRect.width > window.innerWidth - 10) x = window.innerWidth - menuRect.width - 10;
+  if (y + menuRect.height > window.innerHeight - 10) y = window.innerHeight - menuRect.height - 10;
+  menu.style.left = `${Math.max(10, x)}px`;
+  menu.style.top = `${Math.max(10, y)}px`;
+}
+
+function armDismissal() {
+  // Attach after this event loop tick so the opening click does not close it at once
+  setTimeout(() => {
+    if (!activeMenu) return;
+    document.addEventListener('click', onDocClick);
+    document.addEventListener('contextmenu', onDocContext, true);
+    document.addEventListener('keydown', onDocKey, true);
+    window.addEventListener('resize', closeContextMenu);
+    window.addEventListener('blur', closeContextMenu);
+  }, 0);
+}
+
+const SHORTCUT = /Mac|iPhone|iPad/.test(navigator.platform || '') ? { mod: '⌘' } : { mod: 'Ctrl+' };
+
 /**
- * Mounts custom BARAHA context menu at cursor/selection coordinates.
+ * Writing-area right-click menu: Cut / Copy / Paste, the highlight section, then the editor's own actions.
+ * The menu never takes focus or the text selection (mousedown is cancelled on everything in it).
+ *
  * @param {MouseEvent} event
- * @param {string} selectedText
- * @param {Array<{label: string, icon?: string, action: () => void}>} actions
- * @param {object} highlightOpts Optional highlighting options: { onHighlight, onRemoveHighlight, onClearAllHighlights }
+ * @param {object} spec
+ * @param {string}  [spec.header]            e.g. '"some words"' or '3 selections'
+ * @param {boolean} spec.hasSelection        enables Cut/Copy and the highlight section
+ * @param {{cut:Function,copy:Function,paste:Function}} spec.clipboard
+ * @param {object|null} spec.highlight       { getLast, getRecent, apply(color), remove(), more(anchorRect), clearAll() }
+ * @param {Array<{label:string, action:Function}>} [spec.actions]  shown after a divider
  */
-export function openContextMenu(event, selectedText, actions = [], highlightOpts = null) {
+export function openEditorContextMenu(event, spec) {
   event.preventDefault();
   closeContextMenu();
 
-  if (!selectedText || !selectedText.trim()) return;
+  const { hasSelection, clipboard, highlight, actions = [], header = '' } = spec;
+  const run = (fn) => (e) => {
+    e.stopPropagation();
+    closeContextMenu();
+    fn();
+  };
+  const item = (label, fn, { disabled = false, hint = '', cls = '' } = {}) => {
+    const btn = h('button', {
+      type: 'button',
+      class: `context-item context-menu-item ${cls}`.trim(),
+      role: 'menuitem',
+      disabled: !!disabled,
+      onclick: disabled ? (e) => e.stopPropagation() : run(fn),
+    }, h('span', { class: 'context-label' }, label), hint ? h('span', { class: 'context-hint' }, hint) : null);
+    return btn;
+  };
 
-  // Preserve the selection range so clicking swatches doesn't lose it
-  const sel = window.getSelection();
-  const savedRange = sel && sel.rangeCount > 0 ? sel.getRangeAt(0).cloneRange() : null;
+  const els = [];
+  if (header) els.push(h('div', { class: 'context-header' }, header));
 
-  function restoreSelection() {
-    if (savedRange && window.getSelection) {
-      const s = window.getSelection();
-      s.removeAllRanges();
-      s.addRange(savedRange);
+  els.push(
+    item('Cut', clipboard.cut, { disabled: !hasSelection, hint: `${SHORTCUT.mod}X` }),
+    item('Copy', clipboard.copy, { disabled: !hasSelection, hint: `${SHORTCUT.mod}C` }),
+    item('Paste', clipboard.paste, { hint: `${SHORTCUT.mod}V` }),
+  );
+
+  if (hasSelection && highlight) {
+    els.push(h('div', { class: 'context-divider' }));
+    const last = highlight.getLast();
+    const recent = highlight.getRecent();
+    els.push(h('div', { class: 'context-section-label' }, 'Highlight'));
+    els.push(h('button', {
+      type: 'button', class: 'context-item context-menu-item context-hl-last', role: 'menuitem',
+      title: `Highlight with the last used color (${last})`,
+      onclick: run(() => highlight.apply(last)),
+    }, h('span', { class: 'context-chip', style: `background-color: ${last};` }), h('span', { class: 'context-label' }, 'Last used')));
+    if (recent.length) {
+      els.push(h('div', { class: 'context-palette-row', role: 'group', 'aria-label': 'Recent colors' },
+        ...recent.slice(0, 8).map((c) => h('button', {
+          type: 'button', class: 'context-swatch', style: `background-color: ${c};`,
+          title: `Highlight ${c}`, 'aria-label': `Highlight ${c}`,
+          onclick: run(() => highlight.apply(c)),
+        }))));
     }
-  }
-
-  const elements = [
-    h('div', { class: 'context-header' }, `"${selectedText.slice(0, 24)}${selectedText.length > 24 ? '…' : ''}"`),
-  ];
-
-  // Check if selection is strictly inside an editable writing textbox
-  const startEl = savedRange
-    ? (savedRange.startContainer.nodeType === Node.ELEMENT_NODE ? savedRange.startContainer : savedRange.startContainer.parentElement)
-    : null;
-  const isInsideWritingBox = isEditableWritingArea(startEl);
-
-  // Highlighting Section (only when right-clicking inside an editable writing area)
-  if (isInsideWritingBox && highlightOpts && (highlightOpts.onHighlight || highlightOpts.onRemoveHighlight)) {
-    const swatches = HIGHLIGHT_PALETTE.map((p) =>
-      h('button', {
-        class: 'context-swatch',
-        style: `background-color: ${p.color};`,
-        title: `Highlight: ${p.title}`,
-        'aria-label': `Highlight ${p.label}`,
-        onclick: (e) => {
-          e.stopPropagation();
-          restoreSelection();
-          closeContextMenu();
-          if (highlightOpts.onHighlight) highlightOpts.onHighlight(p.color);
-        },
-      })
-    );
-
-    const paletteRow = h('div', { class: 'context-palette-row' }, ...swatches);
-
-    const highlightSection = h('div', { class: 'context-highlight-box' },
-      h('div', { class: 'context-section-label' }, 'Highlight Color:'),
-      paletteRow
-    );
-
-    elements.push(highlightSection);
-
-    if (highlightOpts.onRemoveHighlight) {
-      elements.push(h('button', {
-        class: 'context-item context-subtle',
-        onclick: (e) => {
-          e.stopPropagation();
-          restoreSelection();
-          closeContextMenu();
-          highlightOpts.onRemoveHighlight();
-        },
-      }, '✕ Remove Highlight'));
-    }
-
-    if (highlightOpts.onClearAllHighlights) {
-      elements.push(h('button', {
-        class: 'context-item context-subtle',
+    els.push(h('button', {
+      type: 'button', class: 'context-item context-menu-item', role: 'menuitem',
+      onclick: (e) => {
+        e.stopPropagation();
+        const r = menu.getBoundingClientRect(); // open the palette next to the menu
+        const anchor = { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+        closeContextMenu();
+        highlight.more(anchor);
+      },
+    }, h('span', { class: 'context-label' }, 'More colors…')));
+    els.push(item('✕ Remove highlight', highlight.remove, { cls: 'context-subtle' }));
+    if (highlight.clearAll) {
+      els.push(h('button', {
+        type: 'button', class: 'context-item context-menu-item context-subtle', role: 'menuitem',
         onclick: async (e) => {
           e.stopPropagation();
           closeContextMenu();
@@ -118,55 +145,26 @@ export function openContextMenu(event, selectedText, actions = [], highlightOpts
             confirmLabel: 'Clear Highlights',
             danger: false,
           });
-          if (ok) {
-            highlightOpts.onClearAllHighlights();
-          }
+          if (ok) highlight.clearAll();
         },
-      }, 'Clear All Highlights in Field'));
+      }, 'Clear all highlights in field'));
     }
-
-    elements.push(h('div', { class: 'context-divider' }));
   }
 
-  // General actions
-  for (const act of actions) {
-    elements.push(
-      h('button', {
-        class: 'context-item context-menu-item',
-        onclick: (e) => {
-          e.stopPropagation();
-          closeContextMenu();
-          act.action();
-        },
-      }, act.label)
-    );
+  if (hasSelection && actions.length) {
+    els.push(h('div', { class: 'context-divider' }));
+    for (const act of actions) els.push(item(act.label, act.action));
   }
 
-  const menu = h('div', { class: 'baraha-context-menu' }, ...elements);
-
+  const menu = h('div', {
+    class: 'baraha-context-menu baraha-editor-menu',
+    role: 'menu',
+    onmousedown: (e) => e.preventDefault(), // keep focus + selection in the writing area
+  }, ...els);
   document.body.appendChild(menu);
   activeMenu = menu;
-
-  // Viewport clamping
-  const menuRect = menu.getBoundingClientRect();
-  let x = event.clientX;
-  let y = event.clientY;
-
-  if (x + menuRect.width > window.innerWidth - 10) {
-    x = window.innerWidth - menuRect.width - 10;
-  }
-  if (y + menuRect.height > window.innerHeight - 10) {
-    y = window.innerHeight - menuRect.height - 10;
-  }
-
-  menu.style.left = `${Math.max(10, x)}px`;
-  menu.style.top = `${Math.max(10, y)}px`;
-
-  // Attach outside dismissal listeners after this event loop tick
-  setTimeout(() => {
-    document.addEventListener('click', onDocClick);
-    document.addEventListener('keydown', onDocKey);
-  }, 0);
+  placeMenu(menu, event);
+  armDismissal();
 }
 
 /**
@@ -209,23 +207,6 @@ export function openGenericContextMenu(event, actions = [], title = '') {
   const menu = h('div', { class: 'baraha-context-menu' }, ...elements);
   document.body.appendChild(menu);
   activeMenu = menu;
-
-  const menuRect = menu.getBoundingClientRect();
-  let x = event.clientX;
-  let y = event.clientY;
-
-  if (x + menuRect.width > window.innerWidth - 10) {
-    x = window.innerWidth - menuRect.width - 10;
-  }
-  if (y + menuRect.height > window.innerHeight - 10) {
-    y = window.innerHeight - menuRect.height - 10;
-  }
-
-  menu.style.left = `${Math.max(10, x)}px`;
-  menu.style.top = `${Math.max(10, y)}px`;
-
-  setTimeout(() => {
-    document.addEventListener('click', onDocClick);
-    document.addEventListener('keydown', onDocKey);
-  }, 0);
+  placeMenu(menu, event);
+  armDismissal();
 }

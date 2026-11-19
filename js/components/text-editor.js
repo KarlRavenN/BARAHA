@@ -1,19 +1,18 @@
 import { debounce } from '../core/util.js';
 import { getSetting, setSetting } from '../core/store.js';
 import { h, toast, confirmDialog } from '../core/ui.js';
-import { openContextMenu, closeContextMenu } from './context-menu.js';
+import { closeContextMenu } from './context-menu.js';
 import { createHighlightPicker } from './highlight-picker.js';
+import { createEditorOps, showEditorMenu } from './editor-menu.js';
+import { createMultiSelect } from './multi-select.js';
+import { createEditHistory } from './edit-history.js';
+import { loadHighlightState } from './highlight-state.js';
 import { iconEl, iconSvg } from './icons.js';
-import { draftFormDialog } from '../modules/drafts.js';
-import { schemeFormDialog } from '../modules/schemes.js';
 import { lineCheckerDialog } from '../modules/line-checker.js';
 import {
   sanitizeRichContent,
   htmlToPlainText,
   plainTextToHtml,
-  applyHighlight,
-  removeHighlight,
-  clearAllHighlights,
   attachHighlightBoundaryHandler,
 } from './rich-editor.js';
 
@@ -55,14 +54,14 @@ export function mountTextEditor(container, {
     class: 'ghost small-btn toolbar-undo-btn',
     title: 'Undo (Ctrl+Z)',
     'aria-label': 'Undo',
-    onclick: () => { document.execCommand('undo'); refreshCounts(); },
+    onclick: () => { history.undo(); area.focus(); },
   }, h('span', { class: 'tb-icon' }, '↶'), h('span', { class: 'tb-text' }, ' Undo'));
 
   const redoBtn = h('button', {
     class: 'ghost small-btn toolbar-redo-btn',
     title: 'Redo (Ctrl+Y)',
     'aria-label': 'Redo',
-    onclick: () => { document.execCommand('redo'); refreshCounts(); },
+    onclick: () => { history.redo(); area.focus(); },
   }, h('span', { class: 'tb-icon' }, '↷'), h('span', { class: 'tb-text' }, ' Redo'));
 
   const stateBadge = h('span', { class: 'save-state faint' }, 'Loading…');
@@ -206,24 +205,12 @@ export function mountTextEditor(container, {
       : `Mark Round ${roundNum} as completed (updates battle progress)`;
   }
 
-  // Collapsible highlight picker (Google Docs style): one button, palette opens on tap
-  const afterHighlightChange = () => {
-    refreshCounts();
-    setState('saving', 'Unsaved changes');
-    autosave();
-  };
+  // Collapsible highlight picker (Google Docs style): one button, palette opens on tap.
+  // It applies to ALL selected pieces (Ctrl+select) through the same actions as the right-click menu.
   const highlightPicker = createHighlightPicker({
     getArea: () => area, // `area` is created below, so it is read lazily
-    applyColor: (color) => {
-      const ok = applyHighlight(color, area);
-      if (ok) afterHighlightChange();
-      return ok;
-    },
-    removeColor: () => {
-      const ok = removeHighlight(area);
-      if (ok) afterHighlightChange();
-      return ok;
-    },
+    applyColor: (color) => ops.highlight(color),
+    removeColor: () => ops.unhighlight(),
     onNeedSelection: () => toast('Select text inside the writing area to highlight'),
   });
   // Group holds the highlight button and the size stepper so they share one row on phones
@@ -299,6 +286,20 @@ export function mountTextEditor(container, {
     foot);
 
   container.replaceChildren(wrapper);
+
+  // Selection actions shared by the toolbar, the right-click menu and the keyboard.
+  // - multi: Ctrl+select adds more selections (desktop), drawn without touching the saved text
+  // - history: every action (typing, paste, cut, highlight...) is one Undo step
+  loadHighlightState();
+  const multi = createMultiSelect(area, { scrollEl: editorArea });
+  const history = createEditHistory(area, {
+    getExtraSpans: () => multi.getExtraSpans(),
+    onRestore: ({ sel, extra }) => {
+      if (extra.length && sel) multi.setSpans([...extra, sel]);
+      else multi.clear();
+    },
+  });
+  const ops = createEditorOps(area, { multi, history });
 
   function setState(kind, text) {
     stateBadge.className = `save-state ${kind}`;
@@ -393,19 +394,35 @@ export function mountTextEditor(container, {
   });
 
   area.addEventListener('keydown', (e) => {
-    // Ctrl + H: Quick highlight selection with default yellow highlight
+    // Ctrl + H: highlight the selection (all pieces) with the last used colour
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'h') {
       e.preventDefault();
-      const ok = applyHighlight('#B45309', area);
-      if (ok) {
-        refreshCounts();
-        setState('saving', 'Saving…');
-        autosave();
+      const color = highlightPicker.getCurrent();
+      if (ops.highlight(color)) {
         toast('Highlight applied (Ctrl+H)');
       } else {
         toast('Select text in editor to highlight (Ctrl+H)');
       }
+      return;
     }
+    // Delete / Backspace with several selections removes every piece in ONE step
+    if ((e.key === 'Delete' || e.key === 'Backspace') && multi.hasExtras()) {
+      e.preventDefault();
+      ops.deleteSelection();
+    }
+  });
+
+  // Copy / cut with several selections: all pieces, joined in document order with a newline
+  area.addEventListener('copy', (e) => {
+    if (!multi.hasExtras()) return; // one selection: the browser does it
+    e.preventDefault();
+    e.clipboardData.setData('text/plain', ops.texts().join('\n'));
+  });
+  area.addEventListener('cut', (e) => {
+    if (!multi.hasExtras()) return;
+    e.preventDefault();
+    e.clipboardData.setData('text/plain', ops.texts().join('\n'));
+    ops.deleteSelection();
   });
 
   // Handle paste: strip arbitrary markup, preserve clean plain text + line breaks
@@ -413,86 +430,37 @@ export function mountTextEditor(container, {
     e.preventDefault();
     const text = (e.clipboardData || window.clipboardData).getData('text/plain');
     if (!text) return;
+    if (multi.hasExtras()) multi.clear(); // paste replaces the last selection only
     document.execCommand('insertText', false, text);
     refreshCounts();
     setState('saving', 'Unsaved changes');
     autosave();
   });
 
-  // Right-click BARAHA context menu
+  // Right-click BARAHA context menu: Cut / Copy / Paste, highlight, rhyme tools. Works with several selections.
   area.addEventListener('contextmenu', (e) => {
-    const sel = window.getSelection();
-    const selected = sel ? sel.toString().trim() : '';
-    if (!selected) return; // Allow normal browser context menu if no selection
-
-    e.preventDefault();
-    const actions = [
-      {
-        label: `Find Rhymes for "${selected.length > 18 ? selected.slice(0, 18) + '…' : selected}"`,
-        action: () => {
-          if (onRhymeSearch) onRhymeSearch(selected);
-        },
-      },
-      {
-        label: 'Save Selection to Rhyme Bank',
-        action: () => {
-          if (onSaveRhyme) onSaveRhyme(selected);
-        },
-      },
-      {
-        label: 'Add to Scheme Angle',
-        action: async () => {
-          const v = await schemeFormDialog({ draftBars: [selected], title: `Scheme: ${selected.slice(0, 24)}` }, { battleId, roundId });
-          if (v) {
-            const { createScheme } = await import('../core/store.js');
-            await createScheme(v);
-            toast('Scheme created from selection');
-          }
-        },
-      },
-      {
-        label: 'Check for Similar Lines (Line Checker)',
-        action: () => {
-          lineCheckerDialog(selected, { battleId, roundId });
-        },
-      },
-      {
-        label: 'Search Phrase in Workspace',
-        action: () => {
-          location.hash = `#/search`;
-        },
-      },
-    ];
-
-    const highlightOpts = {
-      onHighlight: (color) => {
-        const ok = applyHighlight(color, area);
-        if (ok) {
-          refreshCounts();
-          setState('saving', 'Unsaved changes');
-          autosave();
-          toast('Highlight applied');
+    if (area.getAttribute('contenteditable') !== 'true') return; // still loading: browser menu
+    showEditorMenu(e, ops, {
+      buildActions: (texts) => {
+        const first = texts[0] || '';
+        const list = [];
+        if (texts.length === 1) {
+          list.push({
+            label: `Find Rhymes for "${first.length > 18 ? first.slice(0, 18) + '…' : first}"`,
+            action: () => { if (onRhymeSearch) onRhymeSearch(first); },
+          });
         }
+        list.push({
+          label: texts.length > 1 ? `Save ${texts.length} Selections to Rhyme Bank` : 'Save Selection to Rhyme Bank',
+          action: () => { if (onSaveRhyme) texts.forEach((t) => onSaveRhyme(t)); },
+        });
+        list.push({
+          label: 'Check for Similar Lines (Line Checker)',
+          action: () => { lineCheckerDialog(texts.join('\n'), { battleId, roundId }); },
+        });
+        return list;
       },
-      onRemoveHighlight: () => {
-        const ok = removeHighlight(area);
-        if (ok) {
-          refreshCounts();
-          setState('saving', 'Unsaved changes');
-          autosave();
-          toast('Highlight removed');
-        }
-      },
-      onClearAllHighlights: () => {
-        clearAllHighlights(area);
-        refreshCounts();
-        setState('saving', 'Unsaved changes');
-        autosave();
-        toast('All highlights cleared');
-      },
-    };
-
-    openContextMenu(e, selected, actions, highlightOpts);
+    });
   });
 
   // Writer preferences (size), persisted in settings.
@@ -608,6 +576,7 @@ export function mountTextEditor(container, {
       }
       lastSaved = getRawHtml();
       area.setAttribute('contenteditable', 'true');
+      history.reset();
       refreshCounts();
       setState('saved', 'Saved');
 
@@ -655,6 +624,7 @@ export function mountTextEditor(container, {
       refreshCounts();
       setState('saving', 'Unsaved changes');
       autosave();
+      history.record();
     },
     appendText(str) {
       const current = area.innerText || '';
@@ -664,6 +634,7 @@ export function mountTextEditor(container, {
       refreshCounts();
       setState('saving', 'Unsaved changes');
       autosave();
+      history.record();
       area.focus();
     },
     /** Flush unsaved text; resolves after persistence attempt. Safe to call repeatedly. */
@@ -671,6 +642,8 @@ export function mountTextEditor(container, {
       if (destroyed) return;
       destroyed = true;
       closeContextMenu();
+      multi.destroy();
+      history.destroy();
       highlightPicker.destroy();
       autosave.cancel();
       document.removeEventListener('keydown', onDocKey);

@@ -1,7 +1,9 @@
 import { h, toast } from '../core/ui.js';
-import { HIGHLIGHT_PALETTE } from './context-menu.js';
+import {
+  HIGHLIGHT_PALETTE, DEFAULT_HIGHLIGHT, loadHighlightState, getLastColor, getRecentColors,
+  recordHighlightColor, onHighlightStateChange,
+} from './highlight-state.js';
 import { iconEl } from './icons.js';
-import { getSetting, setSetting } from '../core/store.js';
 
 /**
  * Collapsible highlight colour picker (Google Docs style).
@@ -24,18 +26,119 @@ const GRID = [
   ['#5b0f00', '#660000', '#783f04', '#7f6000', '#274e13', '#0c343d', '#1c4587', '#073763', '#20124d', '#4c1130'],
 ];
 
-const MAX_RECENT = 10;
-const DEFAULT_COLOR = HIGHLIGHT_PALETTE[0].color;
 const isPhone = () => window.matchMedia('(max-width: 768px)').matches;
 const same = (a, b) => String(a).toLowerCase() === String(b).toLowerCase();
 
-export function createHighlightPicker({ getArea, applyColor, removeColor, onNeedSelection }) {
-  let current = DEFAULT_COLOR;
-  let recent = [];
-  let saved = null;
-  let open = null; // { pop, backdrop, cleanup }
+/**
+ * Opens the full colour palette (popover on desktop, bottom sheet on phones).
+ * Used by the toolbar button AND by "More colors..." in the right-click menu.
+ * - anchorRect: DOMRect-like { left, right, top, bottom } the popover is placed next to (desktop).
+ * - onPick(color): apply the colour; returns false when nothing could be highlighted.
+ * - onNone(): remove the highlight; returns false when nothing could be changed.
+ * - onClose(): called once when the palette closes.
+ */
+export function openHighlightPalette({ anchorRect = null, onPick, onNone, onClose = () => {}, onNeedSelection } = {}) {
+  const needSel = onNeedSelection || (() => toast('Select text inside the writing area to highlight'));
+  const current = getLastColor();
+  let closed = false;
 
-  const colorBar = h('span', { class: 'hl-color-bar', style: `background-color: ${current};` });
+  function swatch(color, title, selected) {
+    return h('button', {
+      type: 'button',
+      class: `hl-swatch${selected ? ' is-current' : ''}`,
+      style: `background-color: ${color};`,
+      title: title || color,
+      'aria-label': `Highlight ${title || color}`,
+      onmousedown: (e) => e.preventDefault(),
+      onclick: () => pick(color),
+    });
+  }
+  function section(label, ...children) {
+    return h('div', { class: 'hl-section' }, h('div', { class: 'hl-label' }, label), ...children);
+  }
+  function pick(color) {
+    const ok = onPick ? onPick(color) : false;
+    close();
+    if (ok === false) needSel();
+  }
+
+  const customInput = h('input', {
+    type: 'color',
+    class: 'hl-custom-input',
+    value: /^#[0-9a-f]{6}$/i.test(current) ? current : DEFAULT_HIGHLIGHT,
+    'aria-label': 'Pick a custom color',
+  });
+  customInput.addEventListener('change', () => pick(customInput.value));
+
+  const noneBtn = h('button', {
+    type: 'button',
+    class: 'hl-none',
+    onmousedown: (e) => e.preventDefault(),
+    onclick: () => {
+      const ok = onNone ? onNone() : false;
+      close();
+      if (ok === false) needSel();
+    },
+  }, iconEl('none', 16), h('span', {}, 'None'));
+
+  const customLabel = h('label', { class: 'hl-custom' },
+    h('span', { class: 'hl-custom-plus' }, iconEl('plus', 14)),
+    h('span', {}, 'Custom'),
+    customInput);
+
+  const recent = getRecentColors();
+  const parts = [
+    h('div', { class: 'hl-top' }, noneBtn, customLabel),
+    section('BARAHA colors', h('div', { class: 'hl-grid' },
+      ...HIGHLIGHT_PALETTE.map((p) => swatch(p.color, p.title, same(p.color, current))))),
+  ];
+  if (recent.length) {
+    parts.push(section('Recent', h('div', { class: 'hl-grid' }, ...recent.map((c) => swatch(c, c, same(c, current))))));
+  }
+  parts.push(section('All colors', h('div', { class: 'hl-grid hl-grid-full' },
+    ...GRID.flat().map((c) => swatch(c, c, same(c, current))))));
+
+  const phone = isPhone();
+  const pop = h('div', { class: 'hl-popover', role: 'dialog', 'aria-label': 'Highlight color' },
+    h('div', { class: 'hl-sheet-handle', 'aria-hidden': 'true' }), ...parts);
+  pop.classList.toggle('is-sheet', phone);
+  const backdrop = h('div', { class: `hl-backdrop${phone ? ' is-sheet' : ''}`, onclick: () => close() });
+  document.body.append(backdrop, pop);
+
+  if (!phone) {
+    const r = anchorRect || { left: 20, right: 20, top: 20, bottom: 20 };
+    const w = pop.offsetWidth;
+    const ph = pop.offsetHeight;
+    // Prefer the right of the anchor (next to the menu); fall back to its left, then the screen edge
+    let left = r.right + 6;
+    if (left + w > window.innerWidth - 8) left = r.left - w - 6;
+    left = Math.max(8, Math.min(left, window.innerWidth - w - 8));
+    pop.style.left = `${left}px`;
+    pop.style.top = `${Math.max(8, Math.min(r.top, window.innerHeight - ph - 8))}px`;
+  }
+
+  const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
+  const onResize = () => close();
+  document.addEventListener('keydown', onKey, true);
+  window.addEventListener('resize', onResize);
+
+  function close() {
+    if (closed) return;
+    closed = true;
+    document.removeEventListener('keydown', onKey, true);
+    window.removeEventListener('resize', onResize);
+    pop.remove();
+    backdrop.remove();
+    onClose();
+  }
+  return { close, el: pop };
+}
+
+export function createHighlightPicker({ getArea, applyColor, removeColor, onNeedSelection }) {
+  let saved = null;
+  let open = null; // { close }
+
+  const colorBar = h('span', { class: 'hl-color-bar', style: `background-color: ${getLastColor()};` });
   const trigger = h('button', {
     type: 'button',
     class: 'ghost small-btn hl-trigger',
@@ -47,23 +150,10 @@ export function createHighlightPicker({ getArea, applyColor, removeColor, onNeed
     onclick: () => (open ? close() : openPicker()),
   }, h('span', { class: 'hl-trigger-icon' }, iconEl('highlighter', 18), colorBar), iconEl('caret', 14, 'hl-caret'));
 
-  // Restore last used + recent colours from settings
-  Promise.all([getSetting('highlightLast', null), getSetting('highlightRecent', [])]).then(([last, rec]) => {
-    const lastVal = last && typeof last === 'object' && 'value' in last ? last.value : last;
-    const recVal = rec && typeof rec === 'object' && 'value' in rec ? rec.value : rec;
-    if (typeof lastVal === 'string' && /^#[0-9a-f]{6}$/i.test(lastVal)) setCurrent(lastVal, false);
-    if (Array.isArray(recVal)) recent = recVal.filter((c) => /^#[0-9a-f]{6}$/i.test(c)).slice(0, MAX_RECENT);
-  }).catch(() => {});
-
-  function setCurrent(color, persist = true) {
-    current = color;
-    colorBar.style.backgroundColor = color;
-    if (persist) {
-      recent = [color, ...recent.filter((c) => !same(c, color))].slice(0, MAX_RECENT);
-      setSetting('highlightLast', color).catch(() => {});
-      setSetting('highlightRecent', recent).catch(() => {});
-    }
-  }
+  // Last used + recent colours are shared with the right-click menu
+  const syncBar = () => { colorBar.style.backgroundColor = getLastColor(); };
+  const unsub = onHighlightStateChange(syncBar);
+  loadHighlightState().then(syncBar);
 
   function captureSelection() {
     const sel = window.getSelection();
@@ -79,111 +169,37 @@ export function createHighlightPicker({ getArea, applyColor, removeColor, onNeed
     sel.addRange(saved);
   }
 
-  function pick(color) {
-    restoreSelection();
-    const ok = applyColor(color);
-    close();
-    if (ok) setCurrent(color);
-    else (onNeedSelection || (() => toast('Select text inside the writing area to highlight')))();
-  }
-
-  function swatch(color, title, selected) {
-    return h('button', {
-      type: 'button',
-      class: `hl-swatch${selected ? ' is-current' : ''}`,
-      style: `background-color: ${color};`,
-      title: title || color,
-      'aria-label': `Highlight ${title || color}`,
-      onmousedown: (e) => e.preventDefault(),
-      onclick: () => pick(color),
-    });
-  }
-
-  function section(label, ...children) {
-    return h('div', { class: 'hl-section' }, h('div', { class: 'hl-label' }, label), ...children);
-  }
-
-  function buildPopover() {
-    const baraha = h('div', { class: 'hl-grid' },
-      ...HIGHLIGHT_PALETTE.map((p) => swatch(p.color, p.title, same(p.color, current))));
-
-    const customInput = h('input', {
-      type: 'color',
-      class: 'hl-custom-input',
-      value: /^#[0-9a-f]{6}$/i.test(current) ? current : DEFAULT_COLOR,
-      'aria-label': 'Pick a custom color',
-    });
-    customInput.addEventListener('change', () => pick(customInput.value));
-
-    const noneBtn = h('button', {
-      type: 'button',
-      class: 'hl-none',
-      onmousedown: (e) => e.preventDefault(),
-      onclick: () => {
-        restoreSelection();
-        const ok = removeColor();
-        close();
-        if (!ok) (onNeedSelection || (() => toast('Select text inside the writing area to highlight')))();
-      },
-    }, iconEl('none', 16), h('span', {}, 'None'));
-
-    const customLabel = h('label', { class: 'hl-custom' },
-      h('span', { class: 'hl-custom-plus' }, iconEl('plus', 14)),
-      h('span', {}, 'Custom'),
-      customInput);
-
-    const parts = [
-      h('div', { class: 'hl-top' }, noneBtn, customLabel),
-      section('BARAHA colors', baraha),
-    ];
-    if (recent.length) {
-      parts.push(section('Recent', h('div', { class: 'hl-grid' }, ...recent.map((c) => swatch(c, c, same(c, current))))));
-    }
-    parts.push(section('All colors', h('div', { class: 'hl-grid hl-grid-full' },
-      ...GRID.flat().map((c) => swatch(c, c, same(c, current))))));
-
-    return h('div', { class: 'hl-popover', role: 'dialog', 'aria-label': 'Highlight color' },
-      h('div', { class: 'hl-sheet-handle', 'aria-hidden': 'true' }), ...parts);
-  }
-
   function openPicker() {
     captureSelection();
-    const phone = isPhone();
-    const pop = buildPopover();
-    pop.classList.toggle('is-sheet', phone);
-    const backdrop = h('div', { class: `hl-backdrop${phone ? ' is-sheet' : ''}`, onclick: close });
-    document.body.append(backdrop, pop);
-
-    if (!phone) {
-      const r = trigger.getBoundingClientRect();
-      const w = pop.offsetWidth;
-      pop.style.top = `${Math.min(r.bottom + 6, window.innerHeight - pop.offsetHeight - 8)}px`;
-      pop.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - w - 8))}px`;
-    }
-
-    const onKey = (e) => { if (e.key === 'Escape') { e.stopPropagation(); close(); } };
-    const onResize = () => close();
-    document.addEventListener('keydown', onKey, true);
-    window.addEventListener('resize', onResize);
     trigger.setAttribute('aria-expanded', 'true');
-    open = {
-      pop,
-      backdrop,
-      cleanup: () => {
-        document.removeEventListener('keydown', onKey, true);
-        window.removeEventListener('resize', onResize);
+    open = openHighlightPalette({
+      anchorRect: trigger.getBoundingClientRect(),
+      onNeedSelection,
+      onPick: (color) => {
+        restoreSelection();
+        const ok = applyColor(color);
+        if (ok) recordHighlightColor(color);
+        return ok;
       },
-    };
+      onNone: () => {
+        restoreSelection();
+        return removeColor();
+      },
+      onClose: () => {
+        open = null;
+        trigger.setAttribute('aria-expanded', 'false');
+      },
+    });
+    // Toolbar popover sits under the button (not beside it)
+    if (!isPhone() && open.el) {
+      const r = trigger.getBoundingClientRect();
+      const w = open.el.offsetWidth;
+      open.el.style.top = `${Math.min(r.bottom + 6, window.innerHeight - open.el.offsetHeight - 8)}px`;
+      open.el.style.left = `${Math.max(8, Math.min(r.left, window.innerWidth - w - 8))}px`;
+    }
   }
 
-  function close() {
-    if (!open) return;
-    open.cleanup();
-    open.pop.remove();
-    open.backdrop.remove();
-    open = null;
-    trigger.setAttribute('aria-expanded', 'false');
-  }
+  function close() { if (open) open.close(); }
 
-  return { el: trigger, close, destroy: close, getCurrent: () => current };
+  return { el: trigger, close, destroy: () => { close(); unsub(); }, getCurrent: getLastColor };
 }
