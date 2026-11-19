@@ -3509,3 +3509,15 @@ button.back-btn.is-sm img { width: 28px; height: 28px; }
   .focus-exit.focus-exit-icon { width: 40px; height: 40px; padding: 0; border-radius: 50%; justify-content: center; }
   .focus-exit.focus-exit-icon img { width: 34px; height: 34px; }
 }
+
+/* ── Logo image (replaces the old text wordmark) ─────────────────────────── */
+.brand-logo-img {
+  display: block;
+  height: 36px;
+  width: auto;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.7)) brightness(1.25) contrast(1.05);
+  user-select: none;
+  -webkit-user-drag: none;
+}
+.brand-logo-img-lg { height: 46px; }
+.nav-drawer-header .brand-logo-img { height: 40px; }

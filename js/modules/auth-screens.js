@@ -41,17 +41,97 @@ function passwordField(id, label, placeholder = '') {
         class: 'auth-input',
       }),
       h('button', {
-        type: 'button', class: 'auth-pw-toggle', 'aria-label': 'Show/hide password',
+        type: 'button', class: 'auth-pw-toggle', 'aria-label': 'Show or hide password',
         onclick(e) {
           const inp = wrap.querySelector('input');
           const showing = inp.type === 'text';
           inp.type = showing ? 'password' : 'text';
-          e.currentTarget.textContent = showing ? '👁' : '🙈';
+          e.currentTarget.textContent = showing ? 'Show' : 'Hide';
         },
-      }, '👁')
+      }, 'Show')
     )
   );
   return wrap;
+}
+
+// ── Shared landing shell (wall + spray-painted panel) ──────────────────────
+// Purely visual. The forms below keep their own logic; this only wraps them.
+
+const WALL_STEPS = [
+  { label: 'Opponent',    paper: 'sticky',   fix: 'pin' },
+  { label: 'Research',    paper: 'notebook', fix: 'tape' },
+  { label: 'Round 1',     paper: 'torn',     fix: 'clip' },
+  { label: 'Round 2',     paper: 'notebook', fix: 'pin' },
+  { label: 'Round 3',     paper: 'torn',     fix: 'tape' },
+  { label: 'Performance', paper: 'final',    fix: 'tape' },
+];
+
+const SPRAY_DEFS = `
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <filter id="baraha-spray-rough" x="-12%" y="-12%" width="124%" height="140%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.022" numOctaves="3" seed="11" result="wob"/>
+      <feDisplacementMap in="SourceGraphic" in2="wob" scale="16" xChannelSelector="R" yChannelSelector="G" result="shape"/>
+      <feColorMatrix in="shape" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="alpha"/>
+      <feGaussianBlur in="alpha" stdDeviation="3.2" result="soft"/>
+      <feTurbulence type="fractalNoise" baseFrequency="0.95" numOctaves="2" seed="4" result="fine"/>
+      <feColorMatrix in="fine" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  1 0 0 0 0" result="grain"/>
+      <feComposite in="soft" in2="grain" operator="arithmetic" k1="0" k2="1" k3="0.75" k4="-0.38" result="mix"/>
+      <feComponentTransfer in="mix" result="mask"><feFuncA type="linear" slope="9" intercept="-3.9"/></feComponentTransfer>
+      <feComposite in="shape" in2="mask" operator="in"/>
+    </filter>
+    <filter id="baraha-spray-lite" x="-5%" y="-20%" width="110%" height="140%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="2" seed="21" result="n"/>
+      <feDisplacementMap in="SourceGraphic" in2="n" scale="3.5" xChannelSelector="R" yChannelSelector="G"/>
+    </filter>
+  </defs>
+</svg>`;
+
+function sprayDefs() {
+  const box = document.createElement('div');
+  box.innerHTML = SPRAY_DEFS;
+  return box.firstElementChild;
+}
+
+function wallColumn() {
+  const steps = WALL_STEPS.map((s, i) =>
+    h('li', { class: `wall-step wall-step-${i + 1}` },
+      h('div', { class: `wall-note paper-${s.paper}` },
+        h('span', { class: 'wall-note-n' }, String(i + 1).padStart(2, '0')),
+        h('span', { class: 'wall-note-t' }, s.label)
+      ),
+      h('span', { class: `wall-fix fix-${s.fix}`, 'aria-hidden': 'true' }),
+      i < WALL_STEPS.length - 1
+        ? h('span', { class: 'wall-arrow', 'aria-hidden': 'true' })
+        : null
+    )
+  );
+  return h('section', { class: 'auth-wall', 'aria-label': 'BARAHA' },
+    h('img', { class: 'auth-logo', src: 'assets/baraha-logo.png', alt: 'BARAHA', width: '405', height: '202' }),
+    h('ol', { class: 'wall-process', 'aria-label': 'How a battle gets written' }, ...steps)
+  );
+}
+
+function sprayCard(children) {
+  const spray = h('div', { class: 'auth-spray', 'aria-hidden': 'true' },
+    h('div', { class: 'auth-spray-body' }),
+    h('span', { class: 'auth-drip auth-drip-1' }),
+    h('span', { class: 'auth-drip auth-drip-2' }),
+    h('span', { class: 'auth-drip auth-drip-3' }),
+    h('span', { class: 'auth-drip auth-drip-4' })
+  );
+  return h('div', { class: 'auth-card' },
+    spray,
+    h('div', { class: 'auth-card-inner' }, ...children)
+  );
+}
+
+function authShell(...cardChildren) {
+  return h('div', { class: 'auth-screen' },
+    sprayDefs(),
+    wallColumn(),
+    h('div', { class: 'auth-panel' }, sprayCard(cardChildren))
+  );
 }
 
 // ── Register screen ────────────────────────────────────────────────────────
@@ -59,15 +139,7 @@ function passwordField(id, label, placeholder = '') {
 export function renderRegister(onDone) {
   let pendingEmail = '';
 
-  const wrap = h('div', { class: 'auth-screen' },
-    h('div', { class: 'auth-card' },
-      h('div', { class: 'auth-brand' },
-        h('span', { class: 'auth-brand-text' },
-          h('b', {}, 'BAR'),
-          h('span', { class: 'brand-accent' }, 'A'),
-          h('b', {}, 'HA')
-        )
-      ),
+  const wrap = authShell(
       h('h1', { class: 'auth-title' }, 'Create account'),
       h('p', { class: 'auth-sub' }, 'Join the battle rap workspace'),
       h('form', {
@@ -118,7 +190,6 @@ export function renderRegister(onDone) {
         'Already have an account? ',
         h('a', { href: '#', onclick(e) { e.preventDefault(); onDone('login'); } }, 'Sign in')
       )
-    )
   );
 
   return wrap;
@@ -154,15 +225,7 @@ export function renderVerifyOtp(email, type, onDone) {
     },
   }, 'Resend code');
 
-  const wrap = h('div', { class: 'auth-screen' },
-    h('div', { class: 'auth-card' },
-      h('div', { class: 'auth-brand' },
-        h('span', { class: 'auth-brand-text' },
-          h('b', {}, 'BAR'),
-          h('span', { class: 'brand-accent' }, 'A'),
-          h('b', {}, 'HA')
-        )
-      ),
+  const wrap = authShell(
       h('h1', { class: 'auth-title' }, 'Check your email'),
       h('p', { class: 'auth-sub' },
         `We sent a 6-digit code to `, h('b', {}, email)
@@ -202,7 +265,6 @@ export function renderVerifyOtp(email, type, onDone) {
         }, 'Verify')
       ),
       h('p', { class: 'auth-switch' }, resendBtn)
-    )
   );
 
   startCooldown(resendBtn);
@@ -212,15 +274,7 @@ export function renderVerifyOtp(email, type, onDone) {
 // ── Sign in screen ─────────────────────────────────────────────────────────
 
 export function renderLogin(onDone) {
-  const wrap = h('div', { class: 'auth-screen' },
-    h('div', { class: 'auth-card' },
-      h('div', { class: 'auth-brand' },
-        h('span', { class: 'auth-brand-text' },
-          h('b', {}, 'BAR'),
-          h('span', { class: 'brand-accent' }, 'A'),
-          h('b', {}, 'HA')
-        )
-      ),
+  const wrap = authShell(
       h('h1', { class: 'auth-title' }, 'Sign in'),
       h('p', { class: 'auth-sub' }, 'Welcome back to the workspace'),
       h('form', {
@@ -265,7 +319,6 @@ export function renderLogin(onDone) {
         'No account? ',
         h('a', { href: '#', onclick(e) { e.preventDefault(); onDone('register'); } }, 'Create one')
       )
-    )
   );
 
   return wrap;
@@ -274,15 +327,7 @@ export function renderLogin(onDone) {
 // ── Forgot password screen ─────────────────────────────────────────────────
 
 export function renderForgotPassword(onDone) {
-  const wrap = h('div', { class: 'auth-screen' },
-    h('div', { class: 'auth-card' },
-      h('div', { class: 'auth-brand' },
-        h('span', { class: 'auth-brand-text' },
-          h('b', {}, 'BAR'),
-          h('span', { class: 'brand-accent' }, 'A'),
-          h('b', {}, 'HA')
-        )
-      ),
+  const wrap = authShell(
       h('h1', { class: 'auth-title' }, 'Reset password'),
       h('p', { class: 'auth-sub' }, 'Enter your email and we\'ll send a reset code'),
       h('form', {
@@ -317,7 +362,6 @@ export function renderForgotPassword(onDone) {
       h('p', { class: 'auth-switch' },
         h('a', { href: '#', onclick(e) { e.preventDefault(); onDone('login'); } }, '← Back to sign in')
       )
-    )
   );
 
   return wrap;
@@ -326,15 +370,7 @@ export function renderForgotPassword(onDone) {
 // ── Reset password screen ──────────────────────────────────────────────────
 
 export function renderResetPassword(onDone) {
-  const wrap = h('div', { class: 'auth-screen' },
-    h('div', { class: 'auth-card' },
-      h('div', { class: 'auth-brand' },
-        h('span', { class: 'auth-brand-text' },
-          h('b', {}, 'BAR'),
-          h('span', { class: 'brand-accent' }, 'A'),
-          h('b', {}, 'HA')
-        )
-      ),
+  const wrap = authShell(
       h('h1', { class: 'auth-title' }, 'New password'),
       h('p', { class: 'auth-sub' }, 'Choose a strong new password'),
       h('form', {
@@ -363,7 +399,6 @@ export function renderResetPassword(onDone) {
           type: 'submit', class: 'auth-btn', 'data-label': 'Set new password',
         }, 'Set new password')
       )
-    )
   );
 
   return wrap;

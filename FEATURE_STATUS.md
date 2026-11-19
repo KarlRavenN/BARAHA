@@ -197,3 +197,13 @@ Tests: `python tests/ui-polish-c-e2e.py` (about 100 checks, real Chromium, Supab
 | Change stamping + tombstones | [T] | `modifiedAt` and `syncQueue` written atomically with every data write; cascaded deletes and restore-from-backup are tracked. |
 | Sync bookkeeping stores | [T] | `syncQueue`, `syncMeta` (migration v4). |
 | Network sync | [ ] | Stage 2 (`sync.js` + Supabase `sync_records`). Nothing is sent to the cloud yet. |
+
+
+## Landing page redesign (ui-landing-redesign)
+| Feature | Status | Notes |
+|---|---|---|
+| Two-column landing (wall left, form right) | [T] | Visual only: `auth-screens.js` wraps the same forms in `authShell()`. Auth logic, routing and Firebase/Supabase calls are unchanged. |
+| Battle-prep process wall | [T] | Opponent > Research > Round 1-3 > Performance on tape / pin / clip notes. No copy. On phones it becomes a 3x2 strip. |
+| Spray-painted form panel + stencil button | [T] | CSS + inline SVG filters only. Inputs use the maroon palette. |
+| New logo + favicon | [T] | `assets/baraha-logo*.png`, `favicon-32/192/512.png`, `apple-touch-icon.png`. Old `favicon.svg` removed. Logo also replaces the text wordmark in the sidebar and Wall header. |
+| Tested | [T] | Chromium at 1440, 1280x640, 820, 390, 360 (no horizontal scroll); sign-in error, show/hide, forgot, register > verify flows (Supabase stubbed). Real Google Fonts and real Supabase were not reachable in the test sandbox. |
