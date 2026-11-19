@@ -452,43 +452,100 @@ export function normalizeHighlights(container) {
 // Google Docs-style highlighting: apply, recolor, remove with selection preservation.
 // =========================================================================
 
+// -------------------------------------------------------------------------
+// SPANS: { start, end } character offsets inside a container (a <br> counts as 1 character).
+// Several spans make a multi-selection (Ctrl+select). Offsets stay valid when text nodes are
+// split or wrapped, so a list of spans is applied from the LAST span to the FIRST.
+// -------------------------------------------------------------------------
+
+/** Plain text of the container in the same character model as the offsets (<br> = "\n"). */
+export function getContainerText(container) {
+  let out = '';
+  (function walk(node) {
+    if (node.nodeType === Node.TEXT_NODE) { out += node.textContent; return; }
+    if (node.tagName === 'BR') { out += '\n'; return; }
+    for (let i = 0; i < node.childNodes.length; i++) walk(node.childNodes[i]);
+  })(container);
+  return out;
+}
+
+/** Sorts spans, drops empty ones and merges overlapping / touching ones. */
+export function mergeSpans(spans) {
+  const list = (spans || [])
+    .map((s) => ({ start: Math.min(s.start, s.end), end: Math.max(s.start, s.end) }))
+    .filter((s) => s.end > s.start)
+    .sort((a, b) => a.start - b.start || a.end - b.end);
+  const out = [];
+  for (const s of list) {
+    const lastSpan = out[out.length - 1];
+    if (lastSpan && s.start <= lastSpan.end) lastSpan.end = Math.max(lastSpan.end, s.end);
+    else out.push({ ...s });
+  }
+  return out;
+}
+
 /**
- * Applies highlight color to the current window selection.
- *
- * Workflow (matches Google Docs):
- * 1. Selected text immediately receives the new color.
- * 2. If text was already highlighted, color is replaced (never nested, never removed).
- * 3. Selection remains valid and selected.
- * 4. Whitespace-only selections are safely rejected.
- * 5. Works seamlessly across single-line, multi-line, and multi-word selections.
- *
- * @param {string} color CSS hex color (e.g. '#A60000')
- * @param {HTMLElement|null} allowedContainer Optional container boundary
- * @returns {boolean} true if highlight was applied
+ * Plain text of a DOM fragment: text, <br> = newline, and a newline after each <div>/<p> line block
+ * (the browser makes <div> lines while you type; saved text uses <br>).
  */
-export function applyHighlight(color, allowedContainer = null) {
-  const sel = window.getSelection();
-  if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return false;
+function fragmentText(frag) {
+  let out = '';
+  (function walk(node) {
+    if (node.nodeType === Node.TEXT_NODE) { out += node.textContent.replace(/[\uFEFF\u200B]/g, ''); return; }
+    if (node.tagName === 'BR') { out += '\n'; return; }
+    for (let i = 0; i < node.childNodes.length; i++) walk(node.childNodes[i]);
+    if ((node.tagName === 'DIV' || node.tagName === 'P') && out && !out.endsWith('\n')) out += '\n';
+  })(frag);
+  return out;
+}
 
-  const range = sel.getRangeAt(0);
+/** Text of each span, in document order (what Copy / Cut put on the clipboard). */
+export function spanTexts(container, spans) {
+  return mergeSpans(spans).map((s) => {
+    const text = fragmentText(spanToRange(container, s).cloneContents());
+    return text.replace(/\n$/, text.length > 1 || s.end - s.start === 0 ? '' : '\n');
+  });
+}
 
-  // Reject whitespace-only selections
-  const selectedText = range.toString();
-  if (!selectedText || selectedText.trim() === '') return false;
+export function rangeToSpan(container, range) {
+  if (!container.contains(range.startContainer) || !container.contains(range.endContainer)) return null;
+  const a = getCharOffset(container, range.startContainer, range.startOffset);
+  const b = getCharOffset(container, range.endContainer, range.endOffset);
+  return { start: Math.min(a, b), end: Math.max(a, b) };
+}
 
-  // Determine writing container
-  const container = allowedContainer || getWritingContainer(range.commonAncestorContainer) || getWritingContainer(range.startContainer);
-  if (!container || !isEditableWritingArea(container)) return false;
+export function spanToRange(container, span) {
+  const s = getNodeAndOffsetAt(container, span.start);
+  const e = span.start === span.end ? s : getNodeAndOffsetAt(container, span.end);
+  const range = document.createRange();
+  range.setStart(s.node, s.offset);
+  range.setEnd(e.node, e.offset);
+  return range;
+}
 
-  const offsets = getSelectionOffsets(container);
-  if (!offsets || offsets.isCollapsed || offsets.start >= offsets.end) return false;
+/** The current browser selection as a span inside container (null when outside or collapsed). */
+export function getSelectionSpan(container) {
+  const o = getSelectionOffsets(container);
+  return o && !o.isCollapsed && o.end > o.start ? { start: o.start, end: o.end } : null;
+}
 
-  const { start: selStart, end: selEnd } = offsets;
+/** Caret / selection position even when collapsed, for undo history. */
+export function getSelectionOffsetsPublic(container) {
+  const o = getSelectionOffsets(container);
+  return o ? { start: o.start, end: o.end } : null;
+}
 
+export function setSelectionSpan(container, start, end = start) {
+  setSelectionOffsets(container, start, end);
+}
+
+/** Wraps the text of ONE span in a highlight. Returns true when something was highlighted. */
+function applyHighlightToSpan(container, color, selStart, selEnd) {
   // Find all text nodes that intersect [selStart, selEnd]
   const textEntries = getTextNodesWithOffsets(container);
   const targets = textEntries.filter((item) => Math.max(item.start, selStart) < Math.min(item.end, selEnd));
   if (targets.length === 0) return false;
+  let applied = false;
 
   // Process targets in REVERSE order so text node splits don't affect earlier offsets
   for (let i = targets.length - 1; i >= 0; i--) {
@@ -528,6 +585,7 @@ export function applyHighlight(color, allowedContainer = null) {
     }
 
     if (!node.textContent || node.textContent.trim() === '') continue;
+    applied = true;
 
     // Check if node is inside a mark
     const existingMark = node.parentElement && node.parentElement.tagName === 'MARK' ? node.parentElement : null;
@@ -579,41 +637,14 @@ export function applyHighlight(color, allowedContainer = null) {
       mark.appendChild(node);
     }
   }
-
-  // Normalize DOM: flatten nesting, merge same-colored adjacent marks, move <br> out
-  normalizeHighlights(container);
-
-  // Restore selection: user's text remains selected with the new color
-  setSelectionOffsets(container, selStart, selEnd);
-
-  return true;
+  return applied;
 }
 
-/**
- * Removes highlight from the current selection ("No Highlight").
- * Unwraps all marks within the selection, leaving clean plain text.
- * Selection remains valid.
- *
- * @param {HTMLElement|null} allowedContainer Optional container boundary
- * @returns {boolean} true if highlight was removed
- */
-export function removeHighlight(allowedContainer = null) {
-  const sel = window.getSelection();
-  if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return false;
-
-  const range = sel.getRangeAt(0);
-  const container = allowedContainer || getWritingContainer(range.commonAncestorContainer) || getWritingContainer(range.startContainer);
-  if (!container || !isEditableWritingArea(container)) return false;
-
-  const offsets = getSelectionOffsets(container);
-  if (!offsets || offsets.isCollapsed || offsets.start >= offsets.end) return false;
-
-  const { start: selStart, end: selEnd } = offsets;
-
+/** Removes the highlight from ONE span. Returns true when a highlight was removed. */
+function removeHighlightFromSpan(container, selStart, selEnd) {
   // Find all text nodes that intersect [selStart, selEnd]
   const textEntries = getTextNodesWithOffsets(container);
   const targets = textEntries.filter((item) => Math.max(item.start, selStart) < Math.min(item.end, selEnd));
-
   let removedAny = false;
 
   // Process in reverse order
@@ -665,14 +696,107 @@ export function removeHighlight(allowedContainer = null) {
       removedAny = true;
     }
   }
+  return removedAny;
+}
 
-  // Normalize DOM: removes empty marks, merges adjacent text nodes
-  normalizeHighlights(container);
+/**
+ * Highlights every span (a multi-selection). Spans are applied from the LAST to the FIRST so
+ * earlier offsets never shift. The text itself is never changed. Returns true if anything was highlighted.
+ */
+export function applyHighlightToSpans(container, color, spans) {
+  if (!container || !isEditableWritingArea(container)) return false;
+  const text = getContainerText(container);
+  const list = mergeSpans(spans).filter((s) => text.slice(s.start, s.end).trim() !== ''); // whitespace-only spans are rejected
+  let any = false;
+  for (let i = list.length - 1; i >= 0; i--) {
+    if (applyHighlightToSpan(container, color, list[i].start, list[i].end)) any = true;
+  }
+  if (any) normalizeHighlights(container);
+  return any;
+}
+
+/** Removes the highlight from every span (last to first). Returns true if any highlight was removed. */
+export function removeHighlightFromSpans(container, spans) {
+  if (!container || !isEditableWritingArea(container)) return false;
+  const list = mergeSpans(spans);
+  let any = false;
+  for (let i = list.length - 1; i >= 0; i--) {
+    if (removeHighlightFromSpan(container, list[i].start, list[i].end)) any = true;
+  }
+  if (any) normalizeHighlights(container);
+  return any;
+}
+
+/** Deletes the text of every span (last to first). Returns true if anything was deleted. */
+export function deleteSpans(container, spans) {
+  if (!container) return false;
+  const list = mergeSpans(spans);
+  for (let i = list.length - 1; i >= 0; i--) {
+    spanToRange(container, list[i]).deleteContents();
+  }
+  if (list.length) normalizeHighlights(container);
+  return list.length > 0;
+}
+
+/**
+ * Applies highlight color to the current window selection.
+ *
+ * Workflow (matches Google Docs):
+ * 1. Selected text immediately receives the new color.
+ * 2. If text was already highlighted, color is replaced (never nested, never removed).
+ * 3. Selection remains valid and selected.
+ * 4. Whitespace-only selections are safely rejected.
+ * 5. Works seamlessly across single-line, multi-line, and multi-word selections.
+ *
+ * @param {string} color CSS hex color (e.g. '#A60000')
+ * @param {HTMLElement|null} allowedContainer Optional container boundary
+ * @returns {boolean} true if highlight was applied
+ */
+export function applyHighlight(color, allowedContainer = null) {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return false;
+
+  const range = sel.getRangeAt(0);
+  const container = allowedContainer || getWritingContainer(range.commonAncestorContainer) || getWritingContainer(range.startContainer);
+  if (!container || !isEditableWritingArea(container)) return false;
+
+  const offsets = getSelectionOffsets(container);
+  if (!offsets || offsets.isCollapsed || offsets.start >= offsets.end) return false;
+  const { start: selStart, end: selEnd } = offsets;
+
+  const ok = applyHighlightToSpans(container, color, [{ start: selStart, end: selEnd }]);
+  if (!ok) return false;
+
+  // Restore selection: user's text remains selected with the new color
+  setSelectionOffsets(container, selStart, selEnd);
+  return true;
+}
+
+/**
+ * Removes highlight from the current selection ("No Highlight").
+ * Unwraps all marks within the selection, leaving clean plain text.
+ * Selection remains valid.
+ *
+ * @param {HTMLElement|null} allowedContainer Optional container boundary
+ * @returns {boolean} true if highlight was removed
+ */
+export function removeHighlight(allowedContainer = null) {
+  const sel = window.getSelection();
+  if (!sel || sel.rangeCount === 0 || sel.isCollapsed) return false;
+
+  const range = sel.getRangeAt(0);
+  const container = allowedContainer || getWritingContainer(range.commonAncestorContainer) || getWritingContainer(range.startContainer);
+  if (!container || !isEditableWritingArea(container)) return false;
+
+  const offsets = getSelectionOffsets(container);
+  if (!offsets || offsets.isCollapsed || offsets.start >= offsets.end) return false;
+  const { start: selStart, end: selEnd } = offsets;
+
+  const removed = removeHighlightFromSpans(container, [{ start: selStart, end: selEnd }]);
 
   // Restore selection over the plain text
   setSelectionOffsets(container, selStart, selEnd);
-
-  return removedAny;
+  return removed;
 }
 
 /**

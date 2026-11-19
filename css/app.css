@@ -1775,23 +1775,26 @@ mark:empty {
   color: var(--text-faint);
 }
 
-/* Context menu highlight palette */
-.context-highlight-box {
-  padding: 6px 14px 8px;
-  background: var(--surface-2);
-  border-bottom: 1px solid var(--line);
-}
-.context-section-label {
+/* Right-click menu for writing areas */
+.baraha-editor-menu { min-width: 250px; max-width: min(340px, calc(100vw - 20px)); }
+.baraha-editor-menu .context-item { display: flex; align-items: center; justify-content: space-between; gap: 18px; min-height: 32px; }
+.baraha-editor-menu .context-item:disabled { opacity: 0.4; cursor: not-allowed; background: none; color: var(--text); }
+.context-hint { font-size: 11px; color: var(--text-faint); font-family: var(--font-mono, monospace); }
+.baraha-editor-menu .context-section-label {
+  padding: 8px 14px 4px;
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--text-faint);
-  margin-bottom: 6px;
 }
+.context-hl-last { justify-content: flex-start !important; gap: 10px !important; }
+.context-chip { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.4); flex: none; }
 .context-palette-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
   align-items: center;
+  padding: 4px 14px 8px;
 }
 .context-swatch {
   width: 20px;
@@ -1806,6 +1809,16 @@ mark:empty {
   transform: scale(1.25);
   border-color: #ffffff;
 }
+@media (pointer: coarse) {
+  .baraha-editor-menu .context-item { min-height: 44px; }
+  .context-swatch { width: 28px; height: 28px; }
+}
+
+/* Ctrl + select: extra selections (CSS Custom Highlight API; overlay boxes where it is unsupported) */
+.editor-area { position: relative; }
+::highlight(baraha-multi) { background-color: Highlight; color: HighlightText; }
+.multi-select-overlay { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none; z-index: 2; }
+.multi-select-box { position: absolute; background: Highlight; opacity: 0.4; border-radius: 2px; }
 .context-divider {
   height: 1px;
   background: var(--line);
