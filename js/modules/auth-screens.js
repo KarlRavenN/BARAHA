@@ -69,23 +69,68 @@ const WALL_STEPS = [
 const SPRAY_DEFS = `
 <svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
   <defs>
-    <filter id="baraha-spray-rough" x="-12%" y="-12%" width="124%" height="140%" color-interpolation-filters="sRGB">
+    <filter id="baraha-spray-rough" x="-12%" y="-12%" width="124%" height="130%" color-interpolation-filters="sRGB">
       <feTurbulence type="fractalNoise" baseFrequency="0.022" numOctaves="3" seed="11" result="wob"/>
       <feDisplacementMap in="SourceGraphic" in2="wob" scale="16" xChannelSelector="R" yChannelSelector="G" result="shape"/>
       <feColorMatrix in="shape" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="alpha"/>
-      <feGaussianBlur in="alpha" stdDeviation="3.2" result="soft"/>
-      <feTurbulence type="fractalNoise" baseFrequency="0.95" numOctaves="2" seed="4" result="fine"/>
-      <feColorMatrix in="fine" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  1 0 0 0 0" result="grain"/>
-      <feComposite in="soft" in2="grain" operator="arithmetic" k1="0" k2="1" k3="0.75" k4="-0.38" result="mix"/>
-      <feComponentTransfer in="mix" result="mask"><feFuncA type="linear" slope="9" intercept="-3.9"/></feComponentTransfer>
+      <feGaussianBlur in="alpha" stdDeviation="4.5" result="soft"/>
+      <feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="4" result="fine"/>
+      <feColorMatrix in="fine" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  2.6 0 0 0 -0.8" result="grain"/>
+      <feComposite in="soft" in2="grain" operator="arithmetic" k1="0" k2="1" k3="0.8" k4="-0.4" result="mix"/>
+      <feComponentTransfer in="mix" result="mask"><feFuncA type="linear" slope="7" intercept="-3"/></feComponentTransfer>
+      <feComposite in="shape" in2="mask" operator="in"/>
+    </filter>
+    <filter id="baraha-spray-mist" x="-30%" y="-30%" width="160%" height="165%" color-interpolation-filters="sRGB">
+      <feTurbulence type="fractalNoise" baseFrequency="0.022" numOctaves="3" seed="11" result="wob"/>
+      <feDisplacementMap in="SourceGraphic" in2="wob" scale="22" xChannelSelector="R" yChannelSelector="G" result="shape"/>
+      <feColorMatrix in="shape" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 1 0" result="alpha"/>
+      <feGaussianBlur in="alpha" stdDeviation="15" result="soft"/>
+      <feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="2" seed="9" result="fine"/>
+      <feColorMatrix in="fine" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  2.8 0 0 0 -0.9" result="grain"/>
+      <feComposite in="soft" in2="grain" operator="arithmetic" k1="0" k2="1" k3="0.9" k4="-0.3" result="mix"/>
+      <feComponentTransfer in="mix" result="mask"><feFuncA type="linear" slope="16" intercept="-6.4"/></feComponentTransfer>
       <feComposite in="shape" in2="mask" operator="in"/>
     </filter>
     <filter id="baraha-spray-lite" x="-5%" y="-20%" width="110%" height="140%" color-interpolation-filters="sRGB">
       <feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="2" seed="21" result="n"/>
       <feDisplacementMap in="SourceGraphic" in2="n" scale="3.5" xChannelSelector="R" yChannelSelector="G"/>
     </filter>
+    <linearGradient id="baraha-drip-fill" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#4f0a12"/>
+      <stop offset="0.45" stop-color="#7a111c"/>
+      <stop offset="1" stop-color="#520b13"/>
+    </linearGradient>
   </defs>
 </svg>`;
+
+// Real-looking paint drip: flared where it leaves the paint, thin runny stem, fat bead at the end.
+// len = total length (px), stem = stem width, bead = bead radius.
+function dripSvg(len, stem, bead, flare = 6) {
+  const w = Math.ceil(bead * 2 + flare * 2 + 4);
+  const cx = w / 2, s = stem / 2, by = len - bead * 2;        // bead top
+  const d = [
+    `M${cx - s - flare} 0`,
+    `C${cx - s - 1} 4 ${cx - s} 12 ${cx - s} 26`,
+    `L${cx - s} ${by - 4}`,
+    `C${cx - bead - 0.5} ${by + 2} ${cx - bead} ${len - 1} ${cx} ${len}`,
+    `C${cx + bead} ${len - 1} ${cx + bead + 0.5} ${by + 2} ${cx + s} ${by - 4}`,
+    `L${cx + s} 26`,
+    `C${cx + s} 12 ${cx + s + 1} 4 ${cx + s + flare} 0 Z`,
+  ].join(' ');
+  const hl = `<ellipse cx="${cx - bead * 0.35}" cy="${len - bead * 1.2}" rx="${Math.max(1, bead * 0.28)}" ry="${bead * 0.5}" fill="#ff8a8a" opacity="0.38"/>`
+           + `<rect x="${cx - s + 0.6}" y="30" width="${Math.max(0.8, stem * 0.18)}" height="${Math.max(4, by - 36)}" rx="1" fill="#ff8a8a" opacity="0.22"/>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${len}" viewBox="0 0 ${w} ${len}" aria-hidden="true"><path d="${d}" fill="url(#baraha-drip-fill)"/>${hl}</svg>`;
+}
+
+// left %, length, stem width, bead radius
+const DRIPS = [
+  [10, 46, 6, 5.5],
+  [27, 28, 4, 4],
+  [43, 92, 7, 6.5],
+  [61, 40, 4.5, 4.5],
+  [78, 64, 6, 5.5],
+  [91, 30, 4, 4],
+];
 
 function sprayDefs() {
   const box = document.createElement('div');
@@ -113,17 +158,18 @@ function wallColumn() {
 }
 
 function sprayCard(children) {
+  const mist = h('div', { class: 'auth-spray auth-spray-mist', 'aria-hidden': 'true' },
+    h('div', { class: 'auth-spray-body' }));
   const spray = h('div', { class: 'auth-spray', 'aria-hidden': 'true' },
-    h('div', { class: 'auth-spray-body' }),
-    h('span', { class: 'auth-drip auth-drip-1' }),
-    h('span', { class: 'auth-drip auth-drip-2' }),
-    h('span', { class: 'auth-drip auth-drip-3' }),
-    h('span', { class: 'auth-drip auth-drip-4' })
-  );
-  return h('div', { class: 'auth-card' },
-    spray,
-    h('div', { class: 'auth-card-inner' }, ...children)
-  );
+    h('div', { class: 'auth-spray-body' }));
+  const drips = h('div', { class: 'auth-drips', 'aria-hidden': 'true' });
+  for (const [left, len, stem, bead] of DRIPS) {
+    const d = h('span', { class: 'auth-drip', style: `left:${left}%` });
+    d.innerHTML = dripSvg(len, stem, bead);
+    drips.append(d);
+  }
+  return h('div', { class: 'auth-card' }, mist, spray, drips,
+    h('div', { class: 'auth-card-inner' }, ...children));
 }
 
 function authShell(...cardChildren) {
@@ -276,7 +322,6 @@ export function renderVerifyOtp(email, type, onDone) {
 export function renderLogin(onDone) {
   const wrap = authShell(
       h('h1', { class: 'auth-title' }, 'Sign in'),
-      h('p', { class: 'auth-sub' }, 'Welcome back to the workspace'),
       h('form', {
         class: 'auth-form',
         onsubmit: async (e) => {

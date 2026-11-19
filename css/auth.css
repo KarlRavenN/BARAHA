@@ -214,8 +214,7 @@
   inset: 0;
   background:
     radial-gradient(ellipse 70% 55% at 22% 12%, rgba(190, 36, 48, 0.55) 0%, transparent 70%),
-    radial-gradient(ellipse 60% 50% at 85% 92%, rgba(20, 3, 6, 0.55) 0%, transparent 75%),
-    linear-gradient(155deg, var(--paint-1) 0%, var(--paint-2) 48%, var(--paint-3) 100%);
+    linear-gradient(180deg, var(--paint-1) 0%, var(--paint-2) 55%, #5e0d16 100%);
   clip-path: polygon(2% 7%, 9% 2.5%, 21% 4.5%, 38% 1.5%, 55% 3.5%, 71% 1%, 88% 3.5%, 97% 2%, 99% 15%, 97.5% 32%, 100% 48%, 98% 66%, 99.5% 84%, 96% 96.5%, 82% 98.5%, 67% 96.5%, 50% 99%, 33% 97%, 18% 99%, 6% 96.5%, 1.5% 90%, 3% 74%, 0% 58%, 2.5% 40%, 0.5% 24%);
 }
 /* spray grain */
@@ -228,38 +227,33 @@
   mix-blend-mode: overlay;
 }
 
-/* overspray mist + speckles around the edge (outside the rough filter) */
-.auth-card::before {
-  content: '';
-  position: absolute;
-  inset: -44px -46px -48px -48px;
-  pointer-events: none;
-  background:
-    radial-gradient(circle, rgba(165, 24, 36, 0.75) 0 1px, transparent 1.7px) 0 0 / 47px 41px,
-    radial-gradient(circle, rgba(165, 24, 36, 0.6) 0 1.3px, transparent 2px) 13px 23px / 71px 59px,
-    radial-gradient(circle, rgba(130, 16, 28, 0.55) 0 0.8px, transparent 1.4px) 29px 7px / 31px 37px;
-  -webkit-mask-image: radial-gradient(closest-side, transparent 66%, #000 80%, transparent 97%);
-  mask-image: radial-gradient(closest-side, transparent 66%, #000 80%, transparent 97%);
+/* overspray: same silhouette, big blur, stippled falloff (reference: real spray) */
+.auth-spray-mist {
+  inset: -40px -42px -36px -44px;
+  filter: url(#baraha-spray-mist);
 }
+.auth-spray-mist .auth-spray-body {
+  background: #8a121d;
+  clip-path: polygon(6% 10%, 12% 6%, 25% 7%, 40% 4%, 56% 6%, 72% 4%, 87% 6%, 95% 5%, 97% 17%, 96% 33%, 98% 49%, 96% 66%, 97% 83%, 94% 94%, 81% 96%, 67% 94%, 50% 96%, 34% 94%, 19% 96%, 8% 94%, 4% 88%, 5% 74%, 2% 58%, 5% 40%, 3% 24%);
+}
+.auth-spray-mist .auth-spray-body::after { display: none; }
 
-/* subtle drips, same paint colour */
+/* drips: separate layer, drawn as real paint runs */
+.auth-drips {
+  position: absolute;
+  inset: -20px -22px -18px -24px;
+  pointer-events: none;
+  filter: drop-shadow(0 3px 3px rgba(0, 0, 0, 0.45));
+}
 .auth-drip {
   position: absolute;
-  width: 8px;
-  border-radius: 0 0 5px 5px;
-  background: linear-gradient(180deg, var(--paint-3), #5a0c14 70%, #6a0e18);
+  top: calc(100% - 34px);
+  transform: translateX(-50%);
+  line-height: 0;
+  -webkit-mask-image: linear-gradient(180deg, transparent 0, #000 26px);
+  mask-image: linear-gradient(180deg, transparent 0, #000 26px);
 }
-.auth-drip::after {
-  content: '';
-  position: absolute; left: -1.5px; bottom: -4px;
-  width: 11px; height: 11px; border-radius: 50%;
-  background: #650d16;
-}
-.auth-drip-1 { left: 14%; top: 94%; height: 30px; }
-.auth-drip-2 { left: 39%; top: 95%; height: 18px; width: 7px; }
-.auth-drip-3 { left: 71%; top: 94%; height: 40px; }
-.auth-drip-4 { left: 90%; top: 91%; height: 22px; width: 7px; }
-.auth-drip-4::after { left: -2px; width: 11px; }
+.auth-drip svg { display: block; }
 
 .auth-card-inner {
   position: relative;
@@ -272,15 +266,19 @@
 .auth-brand { display: none; }
 
 .auth-title {
-  font-family: var(--font-ui);
-  font-size: 26px;
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  font-family: var(--font-display);
+  font-size: 44px;
+  font-weight: 400;
+  line-height: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   color: #fff;
-  margin: 0 0 6px;
+  margin: 0 0 8px;
   text-align: left;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
+
+.auth-title + .auth-form { margin-top: 20px; }
 
 .auth-sub {
   font-size: 14px;
@@ -485,7 +483,7 @@
   .fix-clip { transform: scale(0.7); right: 6px; top: -12px; }
 
   .auth-panel { padding: 30px 28px 56px; }
-  .auth-card::before { inset: -36px -24px -40px -24px; }
+  .auth-spray-mist { inset: -26px -24px -24px -26px; }
 }
 
 @media (max-width: 480px) {
@@ -508,8 +506,10 @@
   .auth-panel { padding: 26px 22px 56px; }
   .auth-card::before { inset: -30px -20px -36px -20px; }
   .auth-card-inner { padding: 30px 22px 30px; }
-  .auth-title { font-size: 23px; }
+  .auth-title { font-size: 38px; }
   .auth-spray { inset: -14px -16px -14px -16px; }
+  .auth-drips { inset: -14px -16px -14px -16px; }
+  .auth-spray-mist { inset: -22px -22px -20px -22px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
