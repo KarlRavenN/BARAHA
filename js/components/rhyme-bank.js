@@ -494,10 +494,11 @@ export function mountRhymeBank(container, { battleId = null, roundId = null, onI
 
   return {
     search(word) {
-      searchInput.value = word;
-      currentSearch = word;
-      setTab('engine');
-      triggerSearch(word);
+      const q = String(word || '').replace(/\s+/g, ' ').trim();
+      setTab('engine');          // switching tabs clears the field, so fill it in afterwards
+      searchInput.value = q;
+      currentSearch = q;
+      triggerSearch(q);
     },
     focusInput() {
       searchInput.focus();

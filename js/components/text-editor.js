@@ -8,7 +8,6 @@ import { createMultiSelect } from './multi-select.js';
 import { createEditHistory } from './edit-history.js';
 import { loadHighlightState } from './highlight-state.js';
 import { iconEl, iconSvg } from './icons.js';
-import { lineCheckerDialog } from '../modules/line-checker.js';
 import {
   sanitizeRichContent,
   htmlToPlainText,
@@ -462,10 +461,6 @@ export function mountTextEditor(container, {
         list.push({
           label: texts.length > 1 ? `Save ${texts.length} Selections to Rhyme Bank` : 'Save Selection to Rhyme Bank',
           action: () => { if (onSaveRhyme) texts.forEach((t) => onSaveRhyme(t)); },
-        });
-        list.push({
-          label: 'Check for Similar Lines (Line Checker)',
-          action: () => { lineCheckerDialog(texts.join('\n'), { battleId, roundId }); },
         });
         return list;
       },
