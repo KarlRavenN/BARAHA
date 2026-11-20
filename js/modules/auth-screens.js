@@ -41,14 +41,18 @@ function passwordField(id, label, placeholder = '') {
         class: 'auth-input',
       }),
       h('button', {
-        type: 'button', class: 'auth-pw-toggle', 'aria-label': 'Show or hide password',
+        type: 'button', class: 'auth-pw-toggle', 'aria-label': 'Show password', 'aria-pressed': 'false',
         onclick(e) {
+          const btn = e.currentTarget;
           const inp = wrap.querySelector('input');
           const showing = inp.type === 'text';
           inp.type = showing ? 'password' : 'text';
-          e.currentTarget.textContent = showing ? 'Show' : 'Hide';
+          // Icon shows the current state: open eye = password hidden (tap to show), crossed eye = visible
+          btn.querySelector('img').src = showing ? 'assets/icons/eye-show.png' : 'assets/icons/eye-hide.png';
+          btn.setAttribute('aria-label', showing ? 'Show password' : 'Hide password');
+          btn.setAttribute('aria-pressed', showing ? 'false' : 'true');
         },
-      }, 'Show')
+      }, h('img', { src: 'assets/icons/eye-show.png', alt: '', width: '48', height: '48', draggable: 'false' }))
     )
   );
   return wrap;

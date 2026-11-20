@@ -207,3 +207,12 @@ Tests: `python tests/ui-polish-c-e2e.py` (about 100 checks, real Chromium, Supab
 | Spray-painted form panel + stencil button | [T] | CSS + inline SVG filters only. Inputs use the maroon palette. |
 | New logo + favicon | [T] | `assets/baraha-logo*.png`, `favicon-32/192/512.png`, `apple-touch-icon.png`. Old `favicon.svg` removed. Logo also replaces the text wordmark in the sidebar and Wall header. |
 | Tested | [T] | Chromium at 1440, 1280x640, 820, 390, 360 (no horizontal scroll); sign-in error, show/hide, forgot, register > verify flows (Supabase stubbed). Real Google Fonts and real Supabase were not reachable in the test sandbox. |
+
+## Navbar, text size, password eye (ui-landing-redesign)
+| Feature | Status | Notes |
+|---|---|---|
+| Top navbar (desktop) | [T] | Logo, The Wall, Global Search, Voice Inbox, account menu (drops down). Phones keep the top bar + slide-in drawer. |
+| Opponent Research / Line Checker hidden from nav | [T] | Only the nav entries are hidden (`hidden: true` in `NAV_ALL`, `js/main.js`). Modules and routes `#/opponents`, `#/line-checker` are untouched; set `hidden: false` to restore. |
+| Text size works on phones | [T] | Mobile CSS was forcing the editor to 16px; it now follows the size control. |
+| Reset-to-16 button always visible | [T] | Greyed out (disabled) at 16 instead of disappearing, so the toolbar doesn't shift. |
+| Eye icons for show/hide password | [T] | `assets/icons/eye-show.png` / `eye-hide.png` on a light chip (dark art vanishes on the maroon inputs). |
