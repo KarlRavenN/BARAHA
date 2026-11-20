@@ -37,13 +37,16 @@ const NAV_ICONS = {
   Settings: '<svg viewBox="0 0 20 20" class="nav-icon" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 3a3.5 3.5 0 00-3.2 4.9L4 15.2a1.5 1.5 0 002.1 2.1l7.3-7.3A3.5 3.5 0 1014.5 3z"/></svg>',
 };
 
-const NAV = [
+// Opponent Research and Line Checker are switched off in the navigation for now (no data API yet).
+// Their modules and routes (#/opponents, #/line-checker) are untouched: set `hidden: false` to bring them back.
+const NAV_ALL = [
   { href: '#/', label: 'The Wall', match: (p) => p === '/' },
-  { href: '#/opponents', label: 'Opponent Research', match: (p) => p.startsWith('/opponents') },
-  { href: '#/line-checker', label: 'Line Checker', match: (p) => p.startsWith('/line-checker') },
+  { href: '#/opponents', label: 'Opponent Research', match: (p) => p.startsWith('/opponents'), hidden: true },
+  { href: '#/line-checker', label: 'Line Checker', match: (p) => p.startsWith('/line-checker'), hidden: true },
   { href: '#/search', label: 'Global Search', match: (p) => p.startsWith('/search') },
   { href: '#/voice', label: 'Voice Inbox', match: (p) => p.startsWith('/voice') },
 ];
+const NAV = NAV_ALL.filter((n) => !n.hidden);
 
 // Current signed-in user, kept in sync by onAuthChange
 let currentUser = null;

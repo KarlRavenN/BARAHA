@@ -517,7 +517,6 @@ export async function dashboardView(root) {
   );
 
   const emptyFilterMsg = h('div', { class: 'wall-empty-filter-wrap empty' },
-    makeSearchMagnifierSvg(),
     h('div', { class: 'empty-state-title' }, 'Nothing on the wall matches that'),
     h('div', { class: 'empty-state-desc faint' }, 'Try checking a different status or searching by opponent, league or venue.')
   );

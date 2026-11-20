@@ -2965,7 +2965,7 @@ html, body {
   }
   textarea.editor, .editor, .editor.rich-editor {
     padding: 4px !important;
-    font-size: 16px !important;
+    font-size: var(--editor-size, 16px) !important; /* follows the A- / A+ size control (was hard-locked to 16px) */
     line-height: 1.6;
   }
   .editor-foot {
@@ -3488,7 +3488,7 @@ button.back-btn.is-sm img { width: 28px; height: 28px; }
   color: var(--text-dim); line-height: 0; border-radius: 0 var(--radius) var(--radius) 0;
 }
 .toolbar-size-control .size-reset-btn:hover { color: var(--white); box-shadow: none; transform: none; }
-.toolbar-size-control .size-reset-btn[hidden] { display: none; }
+.toolbar-size-control .size-reset-btn:disabled { opacity: 0.35; cursor: default; pointer-events: none; }
 .toolbar-size-control .size-step-btn { touch-action: manipulation; user-select: none; -webkit-user-select: none; }
 
 /* Exit focus: dark chip with the spray-paint icon */
@@ -3521,3 +3521,79 @@ button.back-btn.is-sm img { width: 28px; height: 28px; }
 }
 .brand-logo-img-lg { height: 46px; }
 .nav-drawer-header .brand-logo-img { height: 40px; }
+
+
+/* =========================================================================
+   TOP NAVBAR (desktop). Phones keep the compact bar + slide-in drawer above.
+   Same markup as before: logo | links | account menu.
+   ========================================================================= */
+.header-brand-tag { display: none !important; } /* the navbar already carries the logo */
+
+@media (min-width: 769px) {
+  #app { grid-template-columns: minmax(0, 1fr); grid-template-rows: 76px minmax(0, 1fr); }
+  #app.focus { grid-template-rows: minmax(0, 1fr); }
+
+  #nav {
+    flex-direction: row;
+    align-items: center;
+    gap: 28px;
+    height: 76px;
+    padding: 0 clamp(28px, 4vw, 72px);
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+    background: rgba(20, 18, 18, 0.96);
+    overflow: visible;
+    position: relative;
+    z-index: 60;
+  }
+  #nav .mobile-brand-bar {
+    display: flex; width: auto; margin: 0; padding: 0; border: 0; flex: 0 0 auto;
+  }
+  #nav .mobile-nav-burger-btn,
+  #nav .nav-drawer-header { display: none; }
+  #nav .brand-logo-img { height: 58px; }
+
+  #nav .nav-links-wrap {
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    flex: 1 1 auto;
+  }
+  #nav .nav-link { padding: 9px 18px; white-space: nowrap; }
+  #nav .nav-link:hover { transform: translateY(-1px); }
+
+  #nav .nav-footer {
+    margin: 0; padding: 0; border: 0;
+    flex-direction: row; align-items: center; flex: 0 0 auto;
+  }
+  #nav .nav-credo { display: none; }
+  #nav .nav-account-wrap { margin: 0; }
+  #nav .account-menu-trigger {
+    width: auto; min-width: 200px; max-width: 280px;
+    padding: 8px 18px 8px 10px; gap: 12px; border-radius: 6px;
+    font-size: 14px; background: rgba(255, 255, 255, 0.03);
+  }
+  #nav .account-avatar { width: 34px; height: 34px; font-size: 13px; }
+  #nav .account-dropdown {
+    top: calc(100% + 10px); bottom: auto; left: auto; right: 0;
+    width: 260px;
+  }
+
+  /* Page padding lines up with the navbar edges, with real breathing room at the bottom */
+  #view { padding: var(--s6) clamp(28px, 4vw, 72px) 64px; }
+  /* Writing studio: fit the row under the navbar (it used to be a fixed 100vh and ran off the bottom) */
+  #view:has(.workspace-studio) {
+    height: auto;
+    padding: var(--s4) clamp(28px, 4vw, 72px) 32px;
+  }
+  .page.workspace-studio { height: 100%; }
+}
+
+@media (min-width: 769px) and (max-width: 900px) {
+  #nav { gap: 14px; padding: 0 20px; }
+  #nav .account-menu-trigger { min-width: 0; }
+  #nav .brand-logo-img { height: 46px; }
+  #nav .nav-link { padding: 9px 11px; }
+  #nav .nav-label-text { font-size: 13px; }
+}

@@ -128,7 +128,7 @@ export function mountTextEditor(container, {
   bindSizeStep(sizeDownBtn, -1);
   bindSizeStep(sizeUpBtn, 1);
   const sizeResetBtn = h('button', {
-    type: 'button', class: 'ghost size-reset-btn', hidden: true,
+    type: 'button', class: 'ghost size-reset-btn', disabled: true,
     title: `Reset to ${SIZE_DEFAULT}`, 'aria-label': `Reset font size to ${SIZE_DEFAULT}`,
     onmousedown: (e) => e.preventDefault(),
     onclick: () => setSize(SIZE_DEFAULT),
@@ -489,7 +489,7 @@ export function mountTextEditor(container, {
     sizeInput.value = String(n);
     sizeDownBtn.disabled = n <= SIZE_MIN;
     sizeUpBtn.disabled = n >= SIZE_MAX;
-    sizeResetBtn.hidden = n === SIZE_DEFAULT;
+    sizeResetBtn.disabled = n === SIZE_DEFAULT; // stays visible (greyed out at the default) so the toolbar never shifts
     applyPrefs(n);
     if (persist && changed) setSetting('editorSize', n).catch(() => {});
   }
