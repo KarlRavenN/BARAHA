@@ -9,13 +9,6 @@ This document details the architecture, code organization, completed modules, da
 
 BARAHA is a dedicated, offline-first creative workspace for battle rap writers. The core structural hierarchy is **Battle → 3 Independent Rounds → Writing Materials**.
 
-### UI Polish C (account menu, Profile, Settings)
-- `js/components/account-menu.js`: avatar + name, sync dot, dropdown Profile / Settings / Sign out.
-- `js/modules/profile.js` (`#/profile`) uses new helpers in `js/core/auth.js` (`updateDisplayName`, `changePassword`, `passwordProblem`).
-- `js/core/sync-ui.js`: `watchSyncStatus`, `requestSync` (main.js answers the `baraha:sync-now` event and attaches `detail.promise`).
-- "Remove this device's data" sets `localStorage['baraha.wipeDb']`; `main.js` deletes that IndexedDB before opening anything.
-- Styles in `css/profile-settings.css`. Tests: `tests/ui-polish-c-e2e.py`.
-
 ### Phase 6 Highlights:
 1. **Highlight Boundary Escape:**
    - Pressing the **Space** key after applying a highlight cleanly escapes the `<mark>` tag.
@@ -95,8 +88,7 @@ baraha/
 │       ├── opponents.js         # Opponent dossier, attack angles & weakness notes
 │       ├── line-checker.js      # Reference database & similarity matcher
 │       ├── search.js            # Global multi-store search
-│       ├── settings.js          # Rhyme engine switch, storage, cloud sync status, backup / restore, shortcuts popup
-│       └── profile.js           # Profile: rapper name, change password, remove this device's data
+│       └── settings.js          # Full ZIP & JSON backup / restore
 └── tests/
     ├── e2e.py                   # 136 Playwright automated browser tests (100% pass)
     ├── runner.html              # In-browser unit test runner (12/12 pass)
@@ -179,3 +171,12 @@ All 16 stores:
 - **Total Tests:** 12
 - **Passed:** 12 (100%)
 - **Test execution:** `python -c "... tests/runner.html ..."` or open `runner.html` in browser.
+
+
+## UI polish batch A (back navigation + font size)
+- **Back button:** `js/components/back-button.js` (`backButton({ fallback, onlyIfPrevious, size, onclick })`) + `js/core/nav-history.js` (started by `initNavHistory()` in `main.js`). It goes to the PREVIOUS page, not browser history; pressing it again swaps. Round/section changes inside one battle do not create a new "previous page". Put it inside `.page-head-main` next to the page title.
+- **Inline editors** (drafts.js, schemes.js) use `backButton({ size: 'sm', onclick })` to save and return to the list.
+- **Font size** lives in `js/components/text-editor.js` (`SIZE_MIN` 4, `SIZE_MAX` 32, `SIZE_DEFAULT` 16; `setSize`, `commitSizeInput`, `bindSizeStep`). The editor reads `--editor-size`; nothing else clamps it.
+- **Exit focus** is `.focus-exit.focus-exit-icon` (icon + label on desktop, icon only at 768px and below).
+- **Tests:** `npm test` (includes `tests/nav-history.test.js`), `python tests/ui-polish-a-e2e.py` (needs Playwright + Chromium). One older test (`draft creation, filtering, and copy/move to final material`) already failed on main.
+- **Next:** batch B (right-click menu, Ctrl multi-select), batch C (account menu, Profile, Settings cleanup).
