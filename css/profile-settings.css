@@ -15,8 +15,19 @@
 .profile-msg.err { color: var(--red-text); }
 .profile-msg.ok { color: #6fd08c; }
 .pw-wrap { position: relative; }
-.pw-wrap input { padding-right: 70px; }
-.pw-wrap button { position: absolute; right: 4px; top: 50%; transform: translateY(-50%); padding: 3px 9px; font-size: 12px; }
+.pw-wrap input { padding-right: 58px; }
+.pw-wrap .pw-eye-toggle {
+  position: absolute; right: 6px; top: 0; bottom: 0; margin: auto 0;
+  width: 40px; height: 32px; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: #e6e1d6; border: none; border-radius: 6px; cursor: pointer;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
+  transition: background 120ms ease;
+}
+.pw-wrap .pw-eye-toggle img { width: 28px; height: 28px; display: block; pointer-events: none; user-select: none; }
+/* keep the global button:active / :hover transforms from moving it (a moving button drops clicks) */
+.pw-wrap .pw-eye-toggle:hover, .pw-wrap .pw-eye-toggle:active { background: #f3eee4; transform: none; box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45); }
+.pw-wrap .pw-eye-toggle:focus-visible { outline: 2px solid #f3dede; outline-offset: 2px; }
 .profile-danger { border-color: rgba(220, 38, 38, 0.4); }
 
 /* ---- Settings: switch row ---- */

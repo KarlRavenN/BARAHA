@@ -10,17 +10,21 @@ import { getSyncStatus, requestSync } from '../core/sync-ui.js';
 
 const NAME_MAX = 30;
 
-/** Password input with a Show/Hide button. */
+/** Password input with an eye toggle (same icons as the sign-in screen). */
 function pwField(label, autocomplete) {
   const input = h('input', { type: 'password', autocomplete, 'aria-label': label });
+  const icon = h('img', { src: 'assets/icons/eye-show.png', alt: '', width: '48', height: '48', draggable: 'false' });
   const toggle = h('button', {
-    type: 'button', class: 'ghost', 'aria-label': `Show or hide ${label.toLowerCase()}`,
+    type: 'button', class: 'pw-eye-toggle', 'aria-label': `Show ${label.toLowerCase()}`, 'aria-pressed': 'false',
     onclick: () => {
       const show = input.type === 'password';
       input.type = show ? 'text' : 'password';
-      toggle.textContent = show ? 'Hide' : 'Show';
+      // open eye = hidden (tap to show); crossed eye = visible
+      icon.src = show ? 'assets/icons/eye-hide.png' : 'assets/icons/eye-show.png';
+      toggle.setAttribute('aria-label', `${show ? 'Hide' : 'Show'} ${label.toLowerCase()}`);
+      toggle.setAttribute('aria-pressed', show ? 'true' : 'false');
     },
-  }, 'Show');
+  }, icon);
   const el = h('div', { class: 'field' }, h('label', {}, label), h('div', { class: 'pw-wrap' }, input, toggle));
   return { el, input };
 }
