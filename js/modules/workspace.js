@@ -613,9 +613,11 @@ export async function workspaceView(root, { id, round, section = 'rhymes' }) {
     isDraft: isDraftRound,
     load: async () => (await store.getFinalMaterial(activeRound.id))?.text ?? '',
     save: (text) => store.saveFinalMaterial(activeRound.id, id, text),
-    onRhymeSearch: (query) => {
-      if (activeSupportingTab !== 'rhymes') {
-        switchSupportingTab('rhymes');
+    onRhymeSearch: async (query) => {
+      // Open the supporting panel if it's hidden, and make sure the Rhymes tab is mounted before searching.
+      if (isPanelCollapsed) await toggleSupportingPanel(false);
+      if (activeSupportingTab !== 'rhymes' || !activeSupportingModule || !activeSupportingModule.search) {
+        await switchSupportingTab('rhymes');
       }
       if (activeSupportingModule && activeSupportingModule.search) {
         activeSupportingModule.search(query);

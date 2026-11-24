@@ -4,7 +4,6 @@ import { debounce } from '../core/util.js';
 import * as store from '../core/store.js';
 import { createEditorOps, showEditorMenu } from '../components/editor-menu.js';
 import { renderAudio, blobFor } from '../components/audio-player.js';
-import { lineCheckerDialog } from './line-checker.js';
 import {
   sanitizeRichContent,
   htmlToPlainText,
@@ -300,12 +299,6 @@ export async function schemesView(container, { battleId, roundId, editor = null 
             action: async () => {
               await store.createSavedRhyme({ text: selected, battleId, roundId, collection: 'Schemes' });
               toast(`Saved "${selected}" to Rhyme Bank`);
-            },
-          },
-          {
-            label: 'Check for Similar Lines (Line Checker)',
-            action: () => {
-              lineCheckerDialog(selected, { battleId, roundId });
             },
           },
           ];

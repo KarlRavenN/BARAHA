@@ -3,7 +3,6 @@ import { backButton } from '../components/back-button.js';
 import { debounce } from '../core/util.js';
 import * as store from '../core/store.js';
 import { createEditorOps, showEditorMenu } from '../components/editor-menu.js';
-import { lineCheckerDialog } from './line-checker.js';
 import {
   sanitizeRichContent,
   htmlToPlainText,
@@ -286,12 +285,6 @@ export async function draftsView(container, { battleId, roundId, roundNumber, ed
             action: async () => {
               await store.createSavedRhyme({ text: selected, battleId, roundId, collection: 'Drafts' });
               toast(`Saved "${selected}" to Rhyme Bank`);
-            },
-          },
-          {
-            label: 'Check for Similar Lines (Line Checker)',
-            action: () => {
-              lineCheckerDialog(selected, { battleId, roundId });
             },
           },
           ];
