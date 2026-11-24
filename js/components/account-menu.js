@@ -1,7 +1,7 @@
 // Account menu in the nav: avatar + rapper name (with a small sync status dot on the avatar).
 // Dropdown: name + email, Profile, Settings, Sign out. Sync details and "Sync now" live in Settings > Cloud sync.
 
-import { h } from '../core/ui.js';
+import { h, removeAnimated } from '../core/ui.js';
 import { signOut } from '../core/auth.js';
 import { go } from '../core/router.js';
 import { watchSyncStatus, SYNC_LABELS, timeAgoText } from '../core/sync-ui.js';
@@ -30,7 +30,7 @@ export function buildAccountMenu(user, onSignedOut) {
   }
 
   function closeMenu() {
-    if (menuEl) { menuEl.remove(); menuEl = null; }
+    if (menuEl) { removeAnimated(menuEl, 140); menuEl = null; }
     trigger.setAttribute('aria-expanded', 'false');
     document.removeEventListener('click', onOutsideClick);
     document.removeEventListener('keydown', onKey);

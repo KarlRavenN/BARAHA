@@ -8,7 +8,7 @@ import { workspaceView } from './modules/workspace.js';
 import { opponentsView } from './modules/opponents.js';
 import { lineCheckerView } from './modules/line-checker.js';
 import { searchView } from './modules/search.js';
-import { voiceNotesView } from './modules/voice-notes.js';
+import { voiceInboxView } from './modules/voice-inbox.js';
 import { settingsView } from './modules/settings.js';
 import { profileView } from './modules/profile.js';
 import { mountAuthFlow } from './modules/auth-screens.js';
@@ -182,7 +182,7 @@ async function startApp() {
   route('/opponents', guard(opponentsView));
   route('/line-checker', guard(lineCheckerView));
   route('/search', guard(searchView));
-  route('/voice', guard((v) => voiceNotesView(v, { isGlobalInbox: true })));
+  route('/voice', guard((v) => voiceInboxView(v)));
   route('/settings', guard(settingsView));
   route('/profile', guard(profileView));
 

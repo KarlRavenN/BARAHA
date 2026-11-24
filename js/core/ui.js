@@ -18,16 +18,36 @@ export function h(tag, attrs = {}, ...children) {
   return el;
 }
 
+/**
+ * Remove an element after its CSS exit animation (`.is-leaving`, see css/motion.css).
+ * Falls back to a timer so it is always removed, and removes immediately when
+ * the user prefers reduced motion.
+ */
+export function removeAnimated(el, ms = 160) {
+  if (!el || el.dataset.leaving) return;
+  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  if (reduce || !el.isConnected) { el.remove(); return; }
+  el.dataset.leaving = '1';
+  el.classList.add('is-leaving');
+  setTimeout(() => el.remove(), ms);
+}
+
+/** Skeleton placeholder block(s) for loading states. */
+export function skeleton(lines = 3, extraClass = '') {
+  return h('div', { class: `skeleton-group ${extraClass}`.trim(), 'aria-hidden': 'true' },
+    Array.from({ length: lines }, (_, i) => h('div', { class: `skeleton skeleton-line${i === lines - 1 ? ' short' : ''}` })));
+}
+
 export function toast(message, kind = 'info') {
   const t = h('div', { class: `toast ${kind}` }, message);
   document.getElementById('toasts').append(t);
-  setTimeout(() => t.remove(), kind === 'error' ? 6000 : 2600);
+  setTimeout(() => removeAnimated(t), kind === 'error' ? 6000 : 2600);
 }
 
 function openModal(content) {
   const overlay = document.getElementById('overlay');
   const scrim = h('div', { class: 'scrim' }, h('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true' }, content));
-  const close = () => { scrim.remove(); document.removeEventListener('keydown', onKey); };
+  const close = () => { removeAnimated(scrim, 180); document.removeEventListener('keydown', onKey); };
   const onKey = (e) => { if (e.key === 'Escape') { close(); scrim._onCancel?.(); } };
   scrim.addEventListener('mousedown', (e) => { if (e.target === scrim) { close(); scrim._onCancel?.(); } });
   document.addEventListener('keydown', onKey);

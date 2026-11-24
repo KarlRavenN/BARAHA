@@ -216,3 +216,14 @@ Tests: `python tests/ui-polish-c-e2e.py` (about 100 checks, real Chromium, Supab
 | Text size works on phones | [T] | Mobile CSS was forcing the editor to 16px; it now follows the size control. |
 | Reset-to-16 button always visible | [T] | Greyed out (disabled) at 16 instead of disappearing, so the toolbar doesn't shift. |
 | Eye icons for show/hide password | [T] | `assets/icons/eye-show.png` / `eye-hide.png` on a light chip (dark art vanishes on the maroon inputs). |
+
+## Motion polish + Voice Inbox (ui-motion-voice-inbox)
+| Feature | Status | Notes |
+|---|---|---|
+| Motion layer | [T] | `css/motion.css` (loaded last). Uses individual `scale`/`translate` so existing transforms still work. 150/200/250ms, ease-out, no bounce. Covers buttons, nav colours, inputs, card hover lift + page-load stagger, modals, account dropdown, toasts, skeleton loaders (`skeleton()` in `ui.js`), reduced-motion. |
+| Page transition | [T] | `router.js` adds `page-enter` to `#view` only when the path changes; the nav never animates. |
+| Exit animations | [T] | `removeAnimated()` in `ui.js` (modals, toasts, account menu). Removes instantly under reduced motion. |
+| Voice Inbox | [T] | `js/modules/voice-inbox.js` at the unchanged `/voice` route. Lists ALL recordings (battle ones included) from the same store, so nothing is copied; delete removes the original. Name, date, duration, battle, Play/Pause/Stop, rename (+ assign battle), download, delete with confirm, search (name + battle), sort Newest/Oldest/Duration/Battle, empty state. |
+| Shared recorder/player | [T] | `components/voice-recorder.js` (now used by the battle Voice Notes tab too) and `components/voice-player.js`. |
+| Future hooks | [ ] | `core/voice-library.js` (`FILTERS`, `SORTS`, `decorate`, `searchText`) is where favorites, tags, folders, AI transcripts/summaries plug in. Not implemented. |
+| Tests | [T] | `tests/voice-library.test.js`, `tests/motion-voice-inbox-e2e.py` (fake mic). Known stale failures not from this change: draft-creation unit test, ui-polish-a size/reset checks, ui-polish-c Line Checker menu check. |

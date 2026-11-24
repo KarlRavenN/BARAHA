@@ -1,0 +1,106 @@
+/* BARAHA motion layer — subtle, Notion/Linear-style micro-interactions.
+   Loaded LAST. Uses the individual `scale` / `translate` properties so it
+   composes with the existing `transform` rules (tilts, stamp hovers) instead
+   of replacing them. Timings: 150ms (micro) / 200ms (default) / 250ms (cards).
+   No bounce, no overshoot. */
+:root {
+  --m-fast: 150ms;
+  --m-base: 200ms;
+  --m-slow: 250ms;
+  --m-ease: cubic-bezier(0.22, 0.61, 0.36, 1);   /* soft ease-out */
+}
+
+/* ---------- Buttons ---------- */
+button, .btn, a.btn {
+  transition: background-color var(--m-fast) var(--m-ease), color var(--m-fast) var(--m-ease),
+    border-color var(--m-fast) var(--m-ease), box-shadow var(--m-base) var(--m-ease),
+    transform var(--m-fast) var(--m-ease), scale var(--m-fast) var(--m-ease),
+    filter var(--m-fast) var(--m-ease), opacity var(--m-base) var(--m-ease);
+}
+@media (hover: hover) {
+  button:not(:disabled):not(.pw-eye-toggle):not(.nav-link):hover { scale: 1.02; filter: brightness(1.07); }
+}
+button:not(:disabled):not(.pw-eye-toggle):active { scale: 0.98; filter: none; }
+button:disabled { opacity: 0.45; }
+
+/* ---------- Navigation (bar stays put; only colours animate) ---------- */
+.nav-link, .nav-link .nav-icon-wrap, .nav-link svg, .nav-link img {
+  transition: background-color var(--m-base) var(--m-ease), color var(--m-base) var(--m-ease),
+    border-color var(--m-base) var(--m-ease), box-shadow var(--m-base) var(--m-ease),
+    opacity var(--m-base) var(--m-ease), filter var(--m-base) var(--m-ease);
+}
+
+/* ---------- Inputs ---------- */
+input, select, textarea {
+  transition: border-color var(--m-base) var(--m-ease), background-color var(--m-base) var(--m-ease),
+    box-shadow var(--m-base) var(--m-ease);
+}
+input:focus, select:focus, textarea:focus { box-shadow: 0 0 0 1px rgba(196, 18, 18, 0.35); }
+
+/* ---------- Cards: hover lift ---------- */
+.card, .match-card, .dashboard-card-item, .rhyme-collection-card, .investigation-card, .scheme-card {
+  transition: translate var(--m-slow) var(--m-ease), box-shadow var(--m-slow) var(--m-ease),
+    border-color var(--m-base) var(--m-ease), background-color var(--m-base) var(--m-ease);
+}
+@media (hover: hover) {
+  .card:hover, .match-card:hover, .dashboard-card-item:hover, .rhyme-collection-card:hover,
+  .investigation-card:hover, .scheme-card:hover {
+    translate: 0 -3px;
+    box-shadow: 0 10px 22px -8px rgba(0, 0, 0, 0.7);
+  }
+}
+.battle-wall-card { transition: transform var(--m-slow) var(--m-ease), box-shadow var(--m-slow) var(--m-ease), border-color var(--m-base) var(--m-ease); }
+
+/* ---------- Page change: only the content area animates ---------- */
+@keyframes m-page-in { from { opacity: 0; translate: 0 8px; } to { opacity: 1; translate: 0 0; } }
+@keyframes m-card-in { from { opacity: 0; translate: 0 10px; } to { opacity: 1; translate: 0 0; } }
+#view.page-enter > * { animation: m-page-in var(--m-slow) var(--m-ease) both; }
+#view.page-enter .card, #view.page-enter .battle-wall-card, #view.page-enter .match-card,
+#view.page-enter .dashboard-card-item { animation: m-card-in var(--m-slow) var(--m-ease) both; }
+#view.page-enter :is(.card, .battle-wall-card, .match-card, .dashboard-card-item):nth-child(1) { animation-delay: 0ms; }
+#view.page-enter :is(.card, .battle-wall-card, .match-card, .dashboard-card-item):nth-child(2) { animation-delay: 30ms; }
+#view.page-enter :is(.card, .battle-wall-card, .match-card, .dashboard-card-item):nth-child(3) { animation-delay: 60ms; }
+#view.page-enter :is(.card, .battle-wall-card, .match-card, .dashboard-card-item):nth-child(4) { animation-delay: 90ms; }
+#view.page-enter :is(.card, .battle-wall-card, .match-card, .dashboard-card-item):nth-child(5) { animation-delay: 120ms; }
+#view.page-enter :is(.card, .battle-wall-card, .match-card, .dashboard-card-item):nth-child(6) { animation-delay: 150ms; }
+#view.page-enter :is(.card, .battle-wall-card, .match-card, .dashboard-card-item):nth-child(n+7) { animation-delay: 180ms; }
+
+/* ---------- Modals ---------- */
+@keyframes m-fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes m-fade-out { from { opacity: 1; } to { opacity: 0; } }
+@keyframes m-modal-in { from { opacity: 0; scale: 0.96; } to { opacity: 1; scale: 1; } }
+@keyframes m-modal-out { from { opacity: 1; scale: 1; } to { opacity: 0; scale: 0.97; } }
+.scrim { animation: m-fade-in var(--m-base) var(--m-ease) both; }
+.scrim .modal { animation: m-modal-in var(--m-base) var(--m-ease) both; }
+.scrim.is-leaving { animation: m-fade-out var(--m-base) var(--m-ease) both; pointer-events: none; }
+.scrim.is-leaving .modal { animation: m-modal-out var(--m-base) var(--m-ease) both; }
+
+/* ---------- Dropdowns / menus ---------- */
+@keyframes m-drop-in { from { opacity: 0; translate: 0 -6px; } to { opacity: 1; translate: 0 0; } }
+@keyframes m-drop-out { from { opacity: 1; translate: 0 0; } to { opacity: 0; translate: 0 -4px; } }
+.account-dropdown, .baraha-context-menu { animation: m-drop-in var(--m-fast) var(--m-ease) both; }
+.account-dropdown.is-leaving { animation: m-drop-out var(--m-fast) var(--m-ease) both; pointer-events: none; }
+
+/* ---------- Toasts ---------- */
+@keyframes m-toast-in { from { opacity: 0; translate: 0 8px; } to { opacity: 1; translate: 0 0; } }
+@keyframes m-toast-out { from { opacity: 1; translate: 0 0; } to { opacity: 0; translate: 0 6px; } }
+.toast { animation: m-toast-in var(--m-base) var(--m-ease) both; }
+.toast.is-leaving { animation: m-toast-out var(--m-base) var(--m-ease) both; }
+
+/* ---------- Loading: skeletons + content fade ---------- */
+@keyframes m-shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-3) 50%, var(--surface-2) 75%);
+  background-size: 200% 100%; border-radius: var(--radius);
+  animation: m-shimmer 1.6s linear infinite;
+}
+.skeleton-group { display: grid; gap: 10px; }
+.skeleton-line { height: 14px; }
+.skeleton-line.short { width: 60%; }
+.skeleton-card { height: 84px; }
+.fade-in { animation: m-fade-in var(--m-slow) var(--m-ease) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 1ms !important; animation-delay: 0ms !important; transition-duration: 1ms !important; }
+  .skeleton { animation: none; }
+}
