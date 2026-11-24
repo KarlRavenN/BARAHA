@@ -30,6 +30,12 @@ async function resolve() {
     if (!m) continue;
     const params = Object.fromEntries(r.keys.map((k, i) => [k, decodeURIComponent(m[i + 1])]));
     document.dispatchEvent(new CustomEvent('baraha:route', { detail: { path } }));
+    const view = document.getElementById('view');
+    const changed = resolve._last !== path; resolve._last = path;
+    if (view && changed) { // content-only page transition; nav stays fixed
+      view.classList.remove('page-enter'); void view.offsetWidth; view.classList.add('page-enter');
+      clearTimeout(resolve._t); resolve._t = setTimeout(() => view.classList.remove('page-enter'), 700);
+    }
     current = (await r.handler(params)) || null;
     return;
   }
