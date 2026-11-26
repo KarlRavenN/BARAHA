@@ -4,27 +4,6 @@ Status legend: **[T]** Completed and tested · **[I]** Implemented but not fully
 
 "Tested" = covered by unit tests (12/12 in data layer, in-memory backend, store runner) and `python tests/e2e.py` (136/136 checks in real Chrome/Edge with real IndexedDB, run on final code).
 
-## UI Polish C: Account menu, Profile, Settings (branch `ui-polish-c-account-settings`)
-| Feature | Status | Notes |
-|---|---|---|
-| Account menu shows avatar + rapper name (also in the phone drawer) | [T] | Name is cut with "…" when long. Tested at 360/390/412 px. |
-| Sync dot stays on the avatar with a tooltip | [T] | Green synced, pulsing amber syncing, gray offline/off, red problem. "Sync now" and "Synced just now" left the dropdown. |
-| Dropdown: name + email, Profile, Settings, Sign out | [T] | Settings link removed from the sidebar; route `#/settings` still works. |
-| Profile page `#/profile` (back button, rapper name, read-only email) | [T] | Name 1-30 chars, trimmed, saved with `updateUser`, sidebar updates at once. Real Supabase NOT tested (stubbed). |
-| Change password (asks current password first) | [T] with a fake Supabase | Same 8-character rule as registration, show/hide, plain-word errors. |
-| "Email me a code instead" | [T] with a fake Supabase | Reuses `forgotPassword` + 6-digit `verifyOtp('recovery')` + `updatePassword`. Real email NOT tested. |
-| "Sign out and remove this device's data" | [T] with a fake Supabase | Warns about unsynced changes and offers Sync now; must type REMOVE; the local DB `baraha-<id>` is deleted on the next start. |
-| Settings cleanup | [T] | Removed Appearance, Editor & Shortcuts list, About. Kept Rhyme Engine, Storage, Backup and Restore (unchanged). Plain titles, no numbers. |
-| English rhyme switch fixed | [T] | Real `<input type="checkbox" role="switch">`, themed pill in one row with its label, works with keyboard. Same setting `englishRhymes`. |
-| "?" shortcuts popup | [T] | Ctrl+/, Ctrl+H, Ctrl+Shift+R, Alt+F, Ctrl+F, Ctrl+Z/Y, Ctrl+click multi-select. Esc or Close shuts it. |
-| Persistent storage button | [T] | Calls `navigator.storage.persist()` and reports the real result. |
-| Cloud sync section in Settings | [T] | Status, last synced, waiting count, Sync now. New helper `js/core/sync-ui.js`. There is still no on/off switch (none existed before). |
-
-| Profile page two columns on wide screens | [T] | Name + Email left, Password + This device right; one column on phones. |
-| Fix: bottom of a long round could not be clicked | [T] | The writing box now grows with its text (`.editor-area > .editor` in `css/profile-settings.css`); clicking the blank band under the text puts the caret at the end instead of the top. |
-
-Tests: `python tests/ui-polish-c-e2e.py` (about 100 checks, real Chromium, Supabase stubbed). Not tested: real phone, Opera, real Supabase sign-in/emails.
-
 ## Writing Workflow & UI Refinement (Phase 6)
 | Feature | Status | Notes |
 |---|---|---|
@@ -199,31 +178,18 @@ Tests: `python tests/ui-polish-c-e2e.py` (about 100 checks, real Chromium, Supab
 | Network sync | [ ] | Stage 2 (`sync.js` + Supabase `sync_records`). Nothing is sent to the cloud yet. |
 
 
-## Landing page redesign (ui-landing-redesign)
+## UI polish, batch A: back navigation + font size (ui-polish-a-back-fontsize)
 | Feature | Status | Notes |
 |---|---|---|
-| Two-column landing (wall left, form right) | [T] | Visual only: `auth-screens.js` wraps the same forms in `authShell()`. Auth logic, routing and Firebase/Supabase calls are unchanged. |
-| Battle-prep process wall | [T] | Opponent > Research > Round 1-3 > Performance on tape / pin / clip notes. No copy. On phones it becomes a 3x2 strip. |
-| Spray-painted form panel + stencil button | [T] | CSS + inline SVG filters only. Inputs use the maroon palette. |
-| New logo + favicon | [T] | `assets/baraha-logo*.png`, `favicon-32/192/512.png`, `apple-touch-icon.png`. Old `favicon.svg` removed. Logo also replaces the text wordmark in the sidebar and Wall header. |
-| Tested | [T] | Chromium at 1440, 1280x640, 820, 390, 360 (no horizontal scroll); sign-in error, show/hide, forgot, register > verify flows (Supabase stubbed). Real Google Fonts and real Supabase were not reachable in the test sandbox. |
+| Back button (spray-paint icon) | [T] | Header of Opponent Research, Line Checker, Global Search, Voice Inbox, Settings, workspace; on The Wall only when a previous page exists. Icons in `assets/icons/back-*.png`. |
+| Previous-page memory | [T] | `js/core/nav-history.js`: current + previous route in sessionStorage; Back swaps them. Redirects (`/battles`), repeats and round tabs of one battle are not separate pages. No previous page = fallback to The Wall. |
+| Inline Drafts/Schemes editor back | [T] | Same icon (small); still saves, then returns to the list. |
+| Exit focus icon | [T] | Spray-paint icon (+ "Exit focus" on desktop, icon only on phones); only leaves focus mode; Esc still works. |
+| Font size 4 to 32, typeable | [T] | Number field (Enter/blur applies, Esc cancels, 0/99 snap to 4/32, junk reverts), Up/Down arrows, hold + / - to repeat (400 ms, then 80 ms), reset button when not 16. Saved as the `editorSize` setting as before. |
+| Tests | [T] | `tests/nav-history.test.js`, `tests/ui-polish-a-e2e.py` (Playwright, Supabase stubbed). Not tested on a real phone or in Safari/Opera. |
 
-## Navbar, text size, password eye (ui-landing-redesign)
+## Audio player + mobile card menu fixes (ui-polish-ab)
 | Feature | Status | Notes |
 |---|---|---|
-| Top navbar (desktop) | [T] | Logo, The Wall, Global Search, Voice Inbox, account menu (drops down). Phones keep the top bar + slide-in drawer. |
-| Opponent Research / Line Checker hidden from nav | [T] | Only the nav entries are hidden (`hidden: true` in `NAV_ALL`, `js/main.js`). Modules and routes `#/opponents`, `#/line-checker` are untouched; set `hidden: false` to restore. |
-| Text size works on phones | [T] | Mobile CSS was forcing the editor to 16px; it now follows the size control. |
-| Reset-to-16 button always visible | [T] | Greyed out (disabled) at 16 instead of disappearing, so the toolbar doesn't shift. |
-| Eye icons for show/hide password | [T] | `assets/icons/eye-show.png` / `eye-hide.png` on a light chip (dark art vanishes on the maroon inputs). |
-
-## Motion polish + Voice Inbox (ui-motion-voice-inbox)
-| Feature | Status | Notes |
-|---|---|---|
-| Motion layer | [T] | `css/motion.css` (loaded last). Uses individual `scale`/`translate` so existing transforms still work. 150/200/250ms, ease-out, no bounce. Covers buttons, nav colours, inputs, card hover lift + page-load stagger, modals, account dropdown, toasts, skeleton loaders (`skeleton()` in `ui.js`), reduced-motion. |
-| Page transition | [T] | `router.js` adds `page-enter` to `#view` only when the path changes; the nav never animates. |
-| Exit animations | [T] | `removeAnimated()` in `ui.js` (modals, toasts, account menu). Removes instantly under reduced motion. |
-| Voice Inbox | [T] | `js/modules/voice-inbox.js` at the unchanged `/voice` route. Lists ALL recordings (battle ones included) from the same store, so nothing is copied; delete removes the original. Name, date, duration, battle, Play/Pause/Stop, rename (+ assign battle), download, delete with confirm, search (name + battle), sort Newest/Oldest/Duration/Battle, empty state. |
-| Shared recorder/player | [T] | `components/voice-recorder.js` (now used by the battle Voice Notes tab too) and `components/voice-player.js`. |
-| Future hooks | [ ] | `core/voice-library.js` (`FILTERS`, `SORTS`, `decorate`, `searchText`) is where favorites, tags, folders, AI transcripts/summaries plug in. Not implemented. |
-| Tests | [T] | `tests/voice-library.test.js`, `tests/motion-voice-inbox-e2e.py` (fake mic). Known stale failures not from this change: draft-creation unit test, ui-polish-a size/reset checks, ui-polish-c Line Checker menu check. |
+| Themed audio player | [T] | Red play button, red progress line with round red thumb, time. Hidden native audio. Click/drag to seek, arrows seek 5s. Checked in Chromium with a real WAV. |
+| Mobile card menu status submenu | [T] | Opens inside the menu on phones instead of running off the right edge. Checked at 390px. |
