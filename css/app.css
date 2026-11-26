@@ -3666,3 +3666,12 @@ a.vi-battle:hover { color: var(--red-text); text-decoration: underline; }
   padding: 0 2px;
   box-shadow: 0 0 0 1px rgba(181, 18, 34, 0.35);
 }
+
+/* Card menu: a submenu that flips to the left (position only; colours and sizes are unchanged) */
+.card-menu-dropdown .menu-status-options.open-left { margin-left: 0; }
+/* Touch screens: a tapped submenu stays open (hover does not exist there) */
+.card-menu-dropdown .menu-item.has-sub.is-open .menu-status-options {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
