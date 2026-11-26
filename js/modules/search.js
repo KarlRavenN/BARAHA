@@ -1,6 +1,10 @@
 import { h } from '../core/ui.js';
 import { backButton } from '../components/back-button.js';
 import * as store from '../core/store.js';
+import { htmlToPlain, highlightParts } from '../core/search-text.js';
+
+// Builds highlighted text as DOM nodes. The text is never parsed as HTML.
+const marked = (text, q) => highlightParts(text, q).map((p) => (p.hit ? h('mark', { class: 'search-hit' }, p.t) : p.t));
 
 export async function searchView(root) {
   let query = '';
@@ -71,8 +75,9 @@ export async function searchView(root) {
       h('div', { class: 'grow' },
         h('div', { class: 'row', style: 'align-items:center; gap: 8px;' },
           h('span', { class: 'tag red', style: 'font-size: 10px; padding: 1px 6px;' }, r.type),
-          h('b', { class: 'title' }, r.title)),
-        h('div', { class: 'small muted', style: 'margin-top: 4px; font-family: var(--font-write); font-size: 12.5px;' }, r.subtitle)),
+          h('b', { class: 'title' }, ...marked(r.title, q))),
+        h('div', { class: 'small muted', style: 'margin-top: 4px; font-family: var(--font-write); font-size: 12.5px;' },
+          ...marked(htmlToPlain(r.subtitle), q))),
       h('span', { class: 'small', style: 'font-weight: 600; color: var(--red-text);' }, 'Open →')
     );
 

@@ -3657,3 +3657,12 @@ a.vi-battle:hover { color: var(--red-text); text-decoration: underline; }
 .voice-player .vp-time { font-family: var(--font-write); min-width: 82px; text-align: right; }
 .voice-player .vp-play { min-width: 64px; }
 .voice-player .vp-play.is-playing { border-color: var(--red-punch); color: var(--white); }
+
+/* Global search: matched words in results (visible display only) */
+.search-hit {
+  background: rgba(181, 18, 34, 0.5);
+  color: #fff;
+  border-radius: 3px;
+  padding: 0 2px;
+  box-shadow: 0 0 0 1px rgba(181, 18, 34, 0.35);
+}

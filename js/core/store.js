@@ -1325,6 +1325,8 @@ export async function deleteScan(scanId) {
 
 // ---------- Global Search ----------
 
+import { htmlToPlain, makeSnippet } from './search-text.js';
+
 export async function globalSearch(rawQuery) {
   const q = (rawQuery || '').trim().toLowerCase();
   if (!q) return { results: [], total: 0 };
@@ -1371,11 +1373,11 @@ export async function globalSearch(rawQuery) {
       const b = battleMap.get(m.battleId);
       const r = roundMap.get(m.roundId);
       if (b && r) {
-        const snippet = m.text.split('\n').find((l) => l.toLowerCase().includes(q)) || m.text.slice(0, 80);
+        // Clean text for display only (stored HTML is untouched; matching above is unchanged)
         results.push({
           type: 'Final Material',
           title: `${b.title} — ${r.name || ('Round ' + r.number)}`,
-          subtitle: snippet.trim().slice(0, 100),
+          subtitle: makeSnippet(htmlToPlain(m.text), rawQuery, 110),
           href: `#/battle/${b.id}/${r.id}/final`,
         });
       }
@@ -1392,7 +1394,7 @@ export async function globalSearch(rawQuery) {
         results.push({
           type: 'Draft Idea',
           title: d.title,
-          subtitle: `[${d.category || 'Draft'}] ${d.content.slice(0, 80)}`,
+          subtitle: `[${d.category || 'Draft'}] ${makeSnippet(htmlToPlain(d.content), rawQuery, 90)}`,
           href: `#/battle/${b.id}/${targetRoundId}/final`,
         });
       }
