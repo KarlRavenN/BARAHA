@@ -5,6 +5,7 @@ import { timeAgo, formatDate, getBattleCountdown } from '../core/util.js';
 import * as store from '../core/store.js';
 import { battleFormDialog } from './battle-form.js';
 import { attachWallDrag } from '../components/wall-drag.js';
+import { anchorMenu, wireSubmenuTaps } from '../components/anchored-menu.js';
 
 function makeThumbtackSvg(isPinned) {
   const span = document.createElement('span');
@@ -106,7 +107,7 @@ export async function dashboardView(root) {
     const menu = h('div', {
       class: 'card-menu-dropdown',
       'data-battle-id': battle.id,
-      style: `position: fixed; top: ${rect.bottom + 6}px; right: ${Math.max(12, window.innerWidth - rect.right)}px; z-index: 1200;`,
+      style: 'position: fixed; z-index: 1200;',
     });
 
     const pinItem = h('button', {
@@ -179,6 +180,7 @@ export async function dashboardView(root) {
 
     menu.append(pinItem, changeStatusItem, editItem, archiveItem);
     document.body.append(menu);
+    wireSubmenuTaps(menu);
 
     const closeMenu = (ev) => {
       if (!menu.contains(ev.target) && ev.target !== triggerBtn) {
@@ -187,6 +189,9 @@ export async function dashboardView(root) {
       }
     };
     setTimeout(() => document.addEventListener('pointerdown', closeMenu), 10);
+
+    // Stays attached to its card while the page scrolls, and closes if the card scrolls away
+    anchorMenu(menu, triggerBtn, { onDetach: () => document.removeEventListener('pointerdown', closeMenu) });
   }
 
   // Active Battle Poster Card on "THE WALL"
