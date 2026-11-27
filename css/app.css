@@ -3675,3 +3675,37 @@ a.vi-battle:hover { color: var(--red-text); text-decoration: underline; }
   flex-direction: column;
   gap: 2px;
 }
+
+/* =========================================================================
+   PHONE TOOLS BUBBLE (wrench): draggable, snaps to an edge, tucks 25% away
+   ========================================================================= */
+@media (max-width: 768px) {
+  .workspace-reopen-pill.tools-bubble {
+    position: fixed; top: 0; left: 0; z-index: 60;
+    width: 52px; height: 52px; padding: 0; margin: 0; border-radius: 50%;
+    justify-content: center; background: #E8E2D6; border: 2px solid #A60000;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.55), 0 0 10px rgba(166, 0, 0, 0.35);
+    opacity: 0.72; touch-action: none; user-select: none; -webkit-user-select: none;
+    transition: left 0.28s cubic-bezier(.2,.9,.3,1), opacity 0.2s ease;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .workspace-reopen-pill.tools-bubble:hover { transform: none; }
+  .workspace-reopen-pill.tools-bubble .pill-label-desktop { display: none; }
+  .workspace-reopen-pill.tools-bubble .tools-bubble-icon { width: 30px; height: 30px; display: block; pointer-events: none; }
+  .workspace-reopen-pill.tools-bubble:active,
+  .workspace-reopen-pill.tools-bubble:focus-visible { opacity: 1; }
+  .workspace-reopen-pill.tools-bubble.is-tucked { opacity: 0.55; }
+  .workspace-reopen-pill.tools-bubble.is-dragging { transition: none; opacity: 1; cursor: grabbing; }
+  .workspace-reopen-pill.tools-bubble:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
+  .supporting-head { touch-action: none; }
+  .supporting-back-btn img { width: 28px; height: 28px; display: block; pointer-events: none; }
+  .supporting-back-btn { padding: 4px 6px; line-height: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspace-reopen-pill.tools-bubble { transition: opacity 0.2s ease; }
+}
+
+/* Email hint under the sign-up field */
+.auth-email-hint { min-height: 0; margin-top: 4px; font-size: 12px; line-height: 1.4; color: #ffe2dc; }
+.auth-email-hint:empty { display: none; }
+.auth-email-hint .auth-link-btn { font-size: 12px; font-weight: 700; color: #fff; text-decoration: underline; }

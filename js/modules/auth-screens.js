@@ -3,6 +3,7 @@
 // Mounted by main.js before the router starts when no session exists.
 
 import { h } from '../core/ui.js';
+import { checkEmail } from '../core/email-check.js';
 import {
   signUp, signIn, verifyOtp, resendOtp,
   forgotPassword, updatePassword,
@@ -186,10 +187,40 @@ function authShell(...cardChildren) {
 
 // ── Register screen ────────────────────────────────────────────────────────
 
+// Spray-paint back button used on the sign-up and code-entry screens.
+function authBackBtn(onClick) {
+  return h('button', {
+    type: 'button', class: 'auth-back-btn', title: 'Back', 'aria-label': 'Back',
+    onclick: onClick,
+  }, h('img', {
+    src: 'assets/icons/back-48.png', srcset: 'assets/icons/back-96.png 2x',
+    alt: '', width: '40', height: '40', draggable: 'false',
+  }));
+}
+
 export function renderRegister(onDone) {
   let pendingEmail = '';
 
+  // Live email hint under the field: shows the typo suggestion (tap to use it) or the problem.
+  const emailHint = h('div', { class: 'auth-email-hint', role: 'status', 'aria-live': 'polite' });
+  function showEmailHint(input) {
+    const raw = input.value.trim();
+    if (!raw) { emailHint.replaceChildren(); emailHint.dataset.shown = ''; return; }
+    const r = checkEmail(raw);
+    if (r.ok) { emailHint.replaceChildren(); emailHint.dataset.shown = ''; return; }
+    emailHint.dataset.shown = '1';
+    const children = [r.message];
+    if (r.suggestion) {
+      children.push(' ', h('button', {
+        type: 'button', class: 'auth-link-btn',
+        onclick: () => { input.value = r.suggestion; showEmailHint(input); },
+      }, 'Use this'));
+    }
+    emailHint.replaceChildren(...children);
+  }
+
   const wrap = authShell(
+      authBackBtn(() => onDone('login')),
       h('h1', { class: 'auth-title' }, 'Create account'),
       h('p', { class: 'auth-sub' }, 'Join the battle rap workspace'),
       h('form', {
@@ -197,11 +228,16 @@ export function renderRegister(onDone) {
         onsubmit: async (e) => {
           e.preventDefault();
           clearError(wrap);
-          const email = e.target.email.value.trim();
+          const emailCheck = checkEmail(e.target.email.value);
+          const email = emailCheck.ok ? emailCheck.email : e.target.email.value.trim();
           const password = e.target.password.value;
           const displayName = e.target.display_name.value.trim();
 
-          if (!displayName) return showError(wrap, 'Enter your rapper / display name.');
+          if (!displayName) return showError(wrap, 'Enter your rap name.');
+          if (!emailCheck.ok) {
+            showEmailHint(e.target.email);
+            return showError(wrap, emailCheck.message);
+          }
           if (password.length < 8) return showError(wrap, 'Password must be at least 8 characters.');
 
           const btn = e.target.querySelector('button[type=submit]');
@@ -216,20 +252,21 @@ export function renderRegister(onDone) {
         },
       },
         h('div', { class: 'auth-field' },
-          h('label', { for: 'display_name' }, 'Rapper / Display name'),
+          h('label', { for: 'display_name' }, 'Enter Rap Name:'),
           h('input', {
             type: 'text', id: 'display_name', name: 'display_name',
-            placeholder: 'e.g. FlipTop Karl', class: 'auth-input',
-            autocomplete: 'nickname',
+            class: 'auth-input', autocomplete: 'nickname',
           })
         ),
         h('div', { class: 'auth-field' },
-          h('label', { for: 'email' }, 'Email'),
+          h('label', { for: 'email' }, 'Enter Email address:'),
           h('input', {
             type: 'email', id: 'email', name: 'email',
-            placeholder: 'your@email.com', class: 'auth-input',
-            autocomplete: 'email',
-          })
+            class: 'auth-input', autocomplete: 'email',
+            onblur: (e) => showEmailHint(e.target),
+            oninput: (e) => { if (emailHint.dataset.shown) showEmailHint(e.target); },
+          }),
+          emailHint
         ),
         passwordField('password', 'Password', 'At least 8 characters'),
         h('button', {
@@ -275,7 +312,9 @@ export function renderVerifyOtp(email, type, onDone) {
     },
   }, 'Resend code');
 
+  // Back goes where the user came from: sign-up for a new account, "forgot password" for a reset.
   const wrap = authShell(
+      authBackBtn(() => onDone(type === 'recovery' ? 'forgot' : 'register')),
       h('h1', { class: 'auth-title' }, 'Check your email'),
       h('p', { class: 'auth-sub' },
         `We sent a 6-digit code to `, h('b', {}, email)
