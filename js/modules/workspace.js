@@ -415,14 +415,15 @@ export async function workspaceView(root, { id, round, section = 'rhymes' }) {
 
   // Workspace A Containers (Full height writing column; pinned bar panel & compact rhyme bar removed)
   const editorHost = h('div', { class: 'editor-host' });
+  // Desktop: the "Supporting Tools" pill. Phones: a draggable wrench bubble (see the block below the sheet code).
   const reopenPill = h('button', {
-    class: 'workspace-reopen-pill',
+    class: 'workspace-reopen-pill tools-bubble',
     title: 'Open Supporting Tools (Rhymes, Schemes, Voice)',
     'aria-label': 'Open Rhymes and Tools',
     style: isPanelCollapsed ? 'display: inline-flex;' : 'display: none;',
-    onclick: () => toggleSupportingPanel(false),
+    onclick: () => bubbleTap(),
   }, h('span', { class: 'pill-label-desktop' }, '« Supporting Tools'),
-     h('span', { class: 'pill-label-mobile' }, h('span', { class: 'pill-mobile-icon', 'aria-hidden': 'true' }, '≣'), h('span', { class: 'pill-mobile-text' }, ' Rhymes & Tools')));
+     h('img', { class: 'tools-bubble-icon', src: 'assets/icons/tools-wrench.png', alt: '', width: '30', height: '30', draggable: 'false' }));
 
   const workspaceMain = h('div', { class: 'workspace-main' },
     reopenPill,
@@ -439,10 +440,14 @@ export async function workspaceView(root, { id, round, section = 'rhymes' }) {
   const supportingTabsEl = h('div', { class: 'supporting-tabs' });
   const supportingDragHandle = h('div', { class: 'supporting-mobile-handle', 'aria-hidden': 'true' });
   const supportingCollapseBtn = h('button', {
-    class: 'ghost-mini supporting-collapse-btn',
-    title: 'Collapse Supporting Tools panel',
+    class: 'ghost-mini supporting-collapse-btn supporting-back-btn',
+    title: 'Close Supporting Tools',
+    'aria-label': 'Close Supporting Tools',
     onclick: () => toggleSupportingPanel(true),
-  }, '»');
+  }, h('img', {
+    src: 'assets/icons/back-48.png', srcset: 'assets/icons/back-96.png 2x',
+    alt: '', width: '28', height: '28', draggable: 'false',
+  }));
 
   const supportingHead = h('div', { class: 'supporting-head' },
     supportingDragHandle,
@@ -554,6 +559,136 @@ export async function workspaceView(root, { id, round, section = 'rhymes' }) {
       await store.setSetting('workspace_supporting_collapsed', isPanelCollapsed);
     }
   }
+
+  // ── Phone: floating wrench bubble + swipe-down sheet ─────────────────────────
+  const BUBBLE_KEY = 'baraha_tools_bubble';
+  const BUBBLE = 52;
+  const reduceMotion = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+  const clampN = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+  let bubbleState = { side: 'right', y: null, tucked: false };
+  try { bubbleState = { ...bubbleState, ...(JSON.parse(localStorage.getItem(BUBBLE_KEY)) || {}) }; } catch {}
+  const saveBubble = () => { try { localStorage.setItem(BUBBLE_KEY, JSON.stringify(bubbleState)); } catch {} };
+
+  function placeBubble() {
+    if (!isMobileViewport()) {
+      ['left', 'top', 'right', 'bottom'].forEach((k) => reopenPill.style.removeProperty(k));
+      return;
+    }
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const y = clampN(bubbleState.y ?? vh - 230, 70, vh - BUBBLE - 90);
+    const left = bubbleState.side === 'left'
+      ? (bubbleState.tucked ? -BUBBLE * 0.75 : 8)          // tucked: only 25% stays on screen
+      : (bubbleState.tucked ? vw - BUBBLE * 0.25 : vw - BUBBLE - 8);
+    reopenPill.classList.toggle('is-tucked', !!bubbleState.tucked);
+    reopenPill.style.setProperty('left', `${left}px`, 'important');
+    reopenPill.style.setProperty('top', `${y}px`, 'important');
+    reopenPill.style.setProperty('right', 'auto', 'important');
+    reopenPill.style.setProperty('bottom', 'auto', 'important');
+  }
+
+  let justDragged = false;
+  function bubbleTap() {
+    if (justDragged) return;
+    if (bubbleState.tucked && isMobileViewport()) { // the visible sliver brings it back out
+      bubbleState.tucked = false; saveBubble(); placeBubble(); return;
+    }
+    toggleSupportingPanel(false);
+  }
+
+  let bDrag = null;
+  reopenPill.addEventListener('pointerdown', (e) => {
+    if (!isMobileViewport()) return;
+    const r = reopenPill.getBoundingClientRect();
+    bDrag = { id: e.pointerId, x: e.clientX, y: e.clientY, left: r.left, top: r.top, moved: false };
+    reopenPill.setPointerCapture?.(e.pointerId);
+  });
+  reopenPill.addEventListener('pointermove', (e) => {
+    if (!bDrag || e.pointerId !== bDrag.id) return;
+    const dx = e.clientX - bDrag.x, dy = e.clientY - bDrag.y;
+    if (!bDrag.moved && Math.hypot(dx, dy) < 6) return;      // small wobble still counts as a tap
+    bDrag.moved = true;
+    reopenPill.classList.add('is-dragging');
+    reopenPill.style.setProperty('left', `${clampN(bDrag.left + dx, -BUBBLE, window.innerWidth)}px`, 'important');
+    reopenPill.style.setProperty('top', `${clampN(bDrag.top + dy, 60, window.innerHeight - BUBBLE - 60)}px`, 'important');
+  });
+  const endBubbleDrag = (e) => {
+    if (!bDrag || e.pointerId !== bDrag.id) return;
+    const wasMoved = bDrag.moved;
+    bDrag = null;
+    reopenPill.classList.remove('is-dragging');
+    if (!wasMoved) return;
+    justDragged = true; setTimeout(() => { justDragged = false; }, 300);
+    const r = reopenPill.getBoundingClientRect();
+    const vw = window.innerWidth;
+    bubbleState.y = r.top;
+    if (r.left < 0 || r.right > vw) {                          // pushed past the edge: tuck it away
+      bubbleState.side = r.left < 0 ? 'left' : 'right';
+      bubbleState.tucked = true;
+    } else {                                                   // otherwise snap to the nearer edge
+      bubbleState.side = r.left + BUBBLE / 2 < vw / 2 ? 'left' : 'right';
+      bubbleState.tucked = false;
+    }
+    saveBubble();
+    placeBubble();
+  };
+  reopenPill.addEventListener('pointerup', endBubbleDrag);
+  reopenPill.addEventListener('pointercancel', endBubbleDrag);
+  window.addEventListener('resize', placeBubble);
+
+  // Swipe the sheet down to close it (phones only). Past a third of its height, or a quick flick, closes it.
+  let sheetDrag = null;
+  // Starts from anywhere on the head (tabs included). Capture begins only after a real move, so a tap on a tab still works.
+  supportingHead.addEventListener('pointerdown', (e) => {
+    if (!isMobileViewport() || isPanelCollapsed) return;
+    sheetDrag = { id: e.pointerId, y: e.clientY, t: performance.now(), dy: 0, moved: false };
+  });
+  supportingHead.addEventListener('pointermove', (e) => {
+    if (!sheetDrag || e.pointerId !== sheetDrag.id) return;
+    const raw = e.clientY - sheetDrag.y;
+    if (!sheetDrag.moved) {
+      if (raw < 8) return;                       // a wobble is not a swipe
+      sheetDrag.moved = true;
+      supportingHead.setPointerCapture?.(e.pointerId);
+    }
+    sheetDrag.dy = Math.max(0, raw);
+    workspaceSupporting.style.transition = 'none';
+    workspaceSupporting.style.transform = `translateY(${sheetDrag.dy}px)`;
+    const h = workspaceSupporting.offsetHeight || 1;
+    mobileSheetBackdrop.style.opacity = String(clampN(1 - sheetDrag.dy / h, 0, 1));
+  });
+  const endSheetDrag = (e) => {
+    if (!sheetDrag || e.pointerId !== sheetDrag.id) return;
+    const { dy, t, moved } = sheetDrag;
+    sheetDrag = null;
+    if (!moved) return;                          // it was a tap: let the click happen
+    const h = workspaceSupporting.offsetHeight || 1;
+    const fast = dy > 24 && dy / Math.max(1, performance.now() - t) > 0.6;
+    const close = dy > h / 3 || fast;
+    const fade = reduceMotion();
+    const dur = fade ? 160 : (close ? 240 : 260);
+    workspaceSupporting.style.transition = fade ? `opacity ${dur}ms ease` : `transform ${dur}ms ${close ? 'ease-in' : 'cubic-bezier(.2,.9,.3,1.15)'}`;
+    mobileSheetBackdrop.style.transition = `opacity ${dur}ms ease`;
+    if (close) {
+      if (fade) workspaceSupporting.style.opacity = '0';
+      else workspaceSupporting.style.transform = 'translateY(100%)';
+      mobileSheetBackdrop.style.opacity = '0';
+      setTimeout(() => {
+        workspaceSupporting.style.transition = workspaceSupporting.style.transform = workspaceSupporting.style.opacity = '';
+        mobileSheetBackdrop.style.transition = mobileSheetBackdrop.style.opacity = '';
+        toggleSupportingPanel(true);
+      }, dur);
+    } else {
+      workspaceSupporting.style.transform = fade ? '' : 'translateY(0)';
+      mobileSheetBackdrop.style.opacity = '';
+      setTimeout(() => {
+        workspaceSupporting.style.transition = workspaceSupporting.style.transform = '';
+        mobileSheetBackdrop.style.transition = '';
+      }, dur);
+    }
+  };
+  supportingHead.addEventListener('pointerup', endSheetDrag);
+  supportingHead.addEventListener('pointercancel', endSheetDrag);
+  placeBubble();
 
   // Draggable divider implementation
   let isResizing = false;

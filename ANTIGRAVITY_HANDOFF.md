@@ -179,3 +179,9 @@ All 16 stores:
 - **Total Tests:** 12
 - **Passed:** 12 (100%)
 - **Test execution:** `python -c "... tests/runner.html ..."` or open `runner.html` in browser.
+
+## Sign-up, tools bubble, sheet (auth-back-buttons)
+- Email rules live in `js/core/email-check.js` (`checkEmail`, `COMMON_EMAIL_DOMAINS`). Add a provider there, and add a test.
+- Phone tools bubble: `js/modules/workspace.js`, block starting at "Phone: floating wrench bubble". Its position is set with `style.setProperty(..., 'important')` because older `!important` rules in `css/app.css` (mobile `.workspace-reopen-pill`) would otherwise override it.
+- Sheet swipe: `supportingHead` pointer handlers in the same block. Capture starts only after an 8px move, so tab taps are unaffected.
+- Tests: `npm test` (the old draft test still fails on main), `python tests/tools-bubble-e2e.py`.

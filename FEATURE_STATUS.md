@@ -227,3 +227,13 @@ Tests: `python tests/ui-polish-c-e2e.py` (about 100 checks, real Chromium, Supab
 | Shared recorder/player | [T] | `components/voice-recorder.js` (now used by the battle Voice Notes tab too) and `components/voice-player.js`. |
 | Future hooks | [ ] | `core/voice-library.js` (`FILTERS`, `SORTS`, `decorate`, `searchText`) is where favorites, tags, folders, AI transcripts/summaries plug in. Not implemented. |
 | Tests | [T] | `tests/voice-library.test.js`, `tests/motion-voice-inbox-e2e.py` (fake mic). Known stale failures not from this change: draft-creation unit test, ui-polish-a size/reset checks, ui-polish-c Line Checker menu check. |
+
+## Sign-up, tools bubble and sheet (auth-back-buttons)
+| Feature | Status | Notes |
+|---|---|---|
+| Back button on sign-up and code screens | [T] | Spray-paint arrow. Sign-up goes back to Sign in; code screen goes back to sign-up (or Forgot password for a reset). |
+| Sign-up labels | [T] | "Enter Rap Name:" and "Enter Email address:"; no example placeholder. |
+| Email validation | [T] | `js/core/email-check.js`. Format check, then the domain must be a common provider (Gmail, Yahoo, Outlook, Hotmail, iCloud, Proton, etc.). Near misses (gmial.com, yaho.com) get "Did you mean ...?" with a "Use this" tap. Unknown domains are blocked. |
+| Tools bubble (phones) | [T] | Wrench icon (`assets/icons/tools-wrench.png`). Drag anywhere; release past an edge and it tucks away with 25% visible at 55% opacity. Tap the sliver to bring it back. Position remembered per device. Replaces "Rhymes & Tools". Desktop keeps "Supporting Tools". |
+| Tools sheet close | [T] | Spray-paint back arrow replaces the » button. Swipe the sheet head down: past a third of its height or a quick flick closes it with an animation; otherwise it springs back. Reduced-motion users get a fade. |
+| Tests | [T] | `tests/email-check.test.js`, `tests/tools-bubble-e2e.py` (Playwright, Supabase stubbed). Not tested on a real phone or Safari/Opera. |

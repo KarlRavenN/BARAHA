@@ -663,3 +663,17 @@
 
 .account-avatar { position: relative; }
 .account-avatar .sync-dot { right: -3px; bottom: -3px; }
+
+
+/* Spray-paint back button on the auth cards (sign-up, code entry) */
+.auth-back-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; margin: 0 0 6px -8px; padding: 0;
+  background: transparent; border: none; border-radius: 50%; box-shadow: none;
+  cursor: pointer; line-height: 0; -webkit-tap-highlight-color: transparent;
+  transition: transform 120ms ease, filter 120ms ease;
+}
+.auth-back-btn img { width: 40px; height: 40px; display: block; pointer-events: none; filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.45)); }
+.auth-back-btn:hover { filter: brightness(1.18); transform: none; }
+.auth-back-btn:active { transform: scale(0.92); }
+.auth-back-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
